@@ -1,13 +1,13 @@
 imutils==0.5.2
-matplotlib==3.0.2
-numpy==1.15.0
-opencv-python==4.0.0.21
-overpy==0.4
-Pillow==6.2.0
+matplotlib==3.10.0
+numpy==2.2.1
+opencv-python==4.10.0.84
+overpy==0.7
+Pillow==11.0.0
 PyInstaller==3.4
-pyproj==1.9.6
-requests==2.21.0
-scikit-image==0.14.2
-scipy==1.2.0
-urllib3==1.24.2
+pyproj==3.7.0
+requests==2.32.3
+scikit-image==0.25.0
+scipy==1.14.1
+urllib3==2.3.0
 -e git+git://github.com/chadrockey/laspy@14_fix#egg=laspy

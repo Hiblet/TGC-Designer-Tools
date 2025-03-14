@@ -177,7 +177,7 @@ def generate_course(course_json, heightmap_dir_path, options_dict={}, printf=pri
     # Infill data to prevent holes and make the data nice and smooth
     hm_file = Path(heightmap_dir_path) / '/heightmap.npy'
     try:
-        read_dictionary = np.load(heightmap_dir_path + '/heightmap.npy').item()
+        read_dictionary = np.load(heightmap_dir_path + '/heightmap.npy', allow_pickle=True).item()
         im = read_dictionary['heightmap'].astype('float32')
 
         mask = cv2.imread(heightmap_dir_path + '/mask.png', cv2.IMREAD_COLOR)

@@ -5,7 +5,7 @@ import numpy as np
 from scipy import ndimage
 from scipy.ndimage import label
 from skimage.feature import peak_local_max
-from skimage.morphology import watershed
+from skimage.segmentation import watershed
 from skimage.color import label2rgb
 import time
 
@@ -77,8 +77,11 @@ def getTreeCoordinates(groundmap, objectmap, printf=print):
     #im6 = ax6.imshow(img_bin, origin='lower', cmap=cm.plasma)
 
     D = ndimage.distance_transform_edt(img_bin)
-    localMax = peak_local_max(D, indices=False, min_distance=minimum_tree_distance, labels=img_bin, exclude_border=True)
-    markers = ndimage.label(localMax, structure=np.ones((3, 3)))[0] # structure is 8 connected direction matrix
+    localMax = peak_local_max(D, min_distance=minimum_tree_distance, labels=img_bin, exclude_border=True)
+    peak_mask = np.zeros_like(D, dtype=bool)
+    peak_mask[tuple(localMax.T)] = True
+
+    markers = ndimage.label(peak_mask, structure=np.ones((3, 3)))[0] # structure is 8 connected direction matrix
     labels = watershed(-D, markers, mask=img_bin)
     printf("{} unique trees found".format(len(np.unique(labels)) - 1))
 

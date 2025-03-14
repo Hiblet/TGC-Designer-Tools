@@ -173,11 +173,13 @@ class GeoPointCloud:
         return (twod[0], twod[1], z)
 
     def latlonToProj(self, lat, lon):
-        return pyproj.transform(self._platlon, self.proj, lon, lat) # Lon, lat order
+        transformer = pyproj.Transformer.from_proj(self._platlon, self.proj, True)
+        return transformer.transform(lon, lat) # Lon, lat order
 
     def projToLatLon(self, easting, northing):
         # pyroj returns easting coordinate, northing coordinate
-        lonlat = pyproj.transform(self._proj, self._platlon, easting, northing)
+        transformer = pyproj.Transformer.from_proj(self._proj, self._platlon, False)
+        lonlat = transformer.transform(easting, northing)
         return (lonlat[1], lonlat[0])
 
     def enuToLatLon(self, x, y):
@@ -292,7 +294,12 @@ class GeoPointCloud:
 
         for row in range(0, image.shape[0]):
             for column in range(0, image.shape[1]):
-                z = image[row, column]
+                tmpz = image[row, column]
+                if isinstance(tmpz, (float, int)):
+                    z = tmpz
+                else:
+                    z = tmpz[0]
+
                 if math.isfinite(z):
                     x, y = self.cv2ToENU(row, column, image_scale)
                     X.append(x)
@@ -301,8 +308,11 @@ class GeoPointCloud:
                     I.append(0.0)
                     C.append(0.0)
 
-        self.addDataSet(X, Y, Z, I, C)
-
+        try:
+            self.addDataSet(X, Y, Z, I, C)
+        except ValueError:
+            print(X, Y, Z, I, C)
+            
         # Need to store the lowest coordinates in case we cropped the image by not inserting invalid pixels
         # These will become zero when removeBias() is called and helps center large or offset courses to fit
         # Within the 2k square

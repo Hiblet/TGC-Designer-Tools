@@ -21,7 +21,8 @@ def get_unit_multiplier_from_epsg(epsg):
         # Due to numerical precision and the requirements for foot vs survey foot
         # Use a larger number for the transform
         scale_value = 1.0e6
-        x2, y2 = pyproj.transform(unit_proj, meter_proj, scale_value, 0.0)
+        transformer = pyproj.Transformer.from_proj(unit_proj, meter_proj, True)
+        x2, y2 = transformer.transform(scale_value, 0.0)
         return x2/scale_value
     except:
         pass
@@ -38,7 +39,8 @@ def is_epsg_datum(epsg):
     degree_proj = pyproj.Proj(proj='latlong', datum='WGS84')
     try:
         scale_value = 1.0e6
-        x2, y2 = pyproj.transform(meter_proj, degree_proj, scale_value, 0.0)
+        transformer = pyproj.Transformer.from_proj(degree_proj, meter_proj, True)
+        x2, y2 = transformer.transform(scale_value, 0.0)
         return math.isclose(scale_value, x2, abs_tol=1.0) # Should be very different
     except:
         pass
@@ -89,7 +91,8 @@ def load_usgs_directory(d, force_epsg=None, force_unit=None, printf=print):
 
         # Use laspy to load the point data
         try:
-            with laspy.file.File(d+"/"+filename, mode='r') as f:
+            with laspy.open(d+"/"+filename) as f:
+                las = f.read()
                 # Needed from metadata for all files
                 proj = None
                 unit = 0.0 # Don't assume unit
@@ -98,14 +101,32 @@ def load_usgs_directory(d, force_epsg=None, force_unit=None, printf=print):
                     proj, unit = proj_from_epsg(force_epsg, printf=printf)
 
                 # Try to get projection data from laspy
-                for v in f.header.vlrs:
+                for v in las.header.vlrs:
+                    try:
+                        proj = v.parse_crs()
+
+                        if proj is not None:
+                            epsg = proj.to_dict()
+                            if 'units' in epsg:
+                                if epsg['units'] == 'm':
+                                    unit = 1.0
+                                else:
+                                    unit = 0.3048
+                            else:
+                                unit = 0.0
+
+                    except Exception as e:
+                        print(e)
+
+                    parsed_body = v.record_data_bytes()
+
                     # Look for GEOTIFF tags or something?  This is a list of values and EPSG codes
-                    if proj is None and v.parsed_body is not None and len(v.parsed_body) > 3:
+                    if proj is None and parsed_body is not None and len(parsed_body) > 3:
                         try:
-                            num_records = v.parsed_body[3]
+                            num_records = parsed_body[3]
                             for i in range(0, num_records):
-                                key = v.parsed_body[4 + 4*i]
-                                value_offset = v.parsed_body[7 + 4*i]
+                                key = parsed_body[4 + 4*i]
+                                value_offset = parsed_body[7 + 4*i]
                                 try:
                                     proj, unit = proj_from_epsg(value_offset, printf=printf)
                                     if proj is not None:
@@ -117,16 +138,16 @@ def load_usgs_directory(d, force_epsg=None, force_unit=None, printf=print):
                             pass
 
                     # Projection coordinates list
-                    if proj is None and v.parsed_body and len(v.parsed_body) == 10:
+                    if proj is None and parsed_body and len(parsed_body) == 10:
                         # (0.0, 500000.0, 0.0, -75.0, 0.9996, 1.0, 6378137.0, 298.2572221010042, 0.0, 0.017453292519943278)
                         # pyproj.Proj('+proj=tmerc +datum=NAD83 +ellps=GRS80 +a=6378137.0 +f=298.2572221009999 +k=0.9996 +x_0=500000.0 +y_0=0.0 +lon_0=-75.0 +lat_0=0.0 +units=m +axis=enu ', preserve_units=True)
                         try:
                             sys = 'tmerc' # Don't think any other format is used
                             datum = 'NAD83'
                             ellips = 'GRS80' # Assume this for now, can't find any evidence another is used for lidar
-                            proj = pyproj.Proj(proj=sys, datum=datum, ellps=ellips, a=v.parsed_body[6], f=v.parsed_body[7], k=v.parsed_body[4], \
-                                               x_0=v.parsed_body[1], y_0=v.parsed_body[0], lon_0=v.parsed_body[3], lat_0=v.parsed_body[2], units='m', axis='enu')
-                            unit = v.parsed_body[5]
+                            proj = pyproj.Proj(proj=sys, datum=datum, ellps=ellips, a=parsed_body[6], f=parsed_body[7], k=parsed_body[4], \
+                                               x_0=parsed_body[1], y_0=parsed_body[0], lon_0=parsed_body[3], lat_0=parsed_body[2], units='m', axis='enu')
+                            unit = parsed_body[5]
                             printf("Found Projection parameters from lidar file")
                         except:
                             pass
@@ -212,11 +233,11 @@ def load_usgs_directory(d, force_epsg=None, force_unit=None, printf=print):
 
                 # Rarely the files come in with lat and lon coordinates, need to convert these to UTM
                 if proj is None:
-                    if f.header.max[0] - f.header.min[0] < 2.0 and f.header.max[1] - f.header.min[1] < 2.0:
+                    if las.header.max[0] - las.header.min[0] < 2.0 and las.header.max[1] - las.header.min[1] < 2.0:
                         # Such small difference between units, probably in geographic coordinates
                         printf("File is likely in Geographic Coordinates (Lat/Lon Degrees).  You probably want to find alternate files, but we will try to project this for you.")
 
-                        center = ((f.header.max[1] + f.header.min[1])/2.0, (f.header.max[0] + f.header.min[0])/2.0)
+                        center = ((las.header.max[1] + las.header.min[1])/2.0, (las.header.max[0] + las.header.min[0])/2.0)
                         epsg = convert_latlon_to_utm_espg(center[0], center[1])
                         printf("For center coordinates: " + str(center) + ":")
 
@@ -240,9 +261,9 @@ def load_usgs_directory(d, force_epsg=None, force_unit=None, printf=print):
                 printf("Unit in use is " + str(unit))
                 printf("Proj4 : " + str(proj))
 
-                scaled_x = f.x*unit
-                scaled_y = f.y*unit
-                scaled_z = f.z*unit
+                scaled_x = las.x*unit
+                scaled_y = las.y*unit
+                scaled_z = las.z*unit
 
                 converted_x = scaled_x
                 converted_y = scaled_y
@@ -265,8 +286,9 @@ def load_usgs_directory(d, force_epsg=None, force_unit=None, printf=print):
                         converted_y.append(y2)
                         converted_z.append(z2)
 
-                pc.addDataSet(numpy.array(converted_x), numpy.array(converted_y), numpy.array(converted_z), numpy.array(f.intensity), numpy.array(f.classification).astype(int))
-        except:
+                pc.addDataSet(numpy.array(converted_x), numpy.array(converted_y), numpy.array(converted_z), numpy.array(las.intensity), numpy.array(las.classification).astype(int))
+        except Exception as e:
+            print(e)
             printf("Could not load " + filename + " Please report this issue.")
 
     if not pc.count:

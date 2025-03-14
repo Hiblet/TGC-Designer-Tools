@@ -27,7 +27,7 @@ image_height = 500
 
 # Make placeholder image
 data=numpy.array(numpy.random.random((image_width,image_height))*100,dtype=int)
-iim=Image.frombytes('L', (data.shape[1],data.shape[0]), data.astype('b').tostring())
+iim=Image.frombytes('L', (data.shape[1],data.shape[0]), data.astype('b').tobytes())
 
 root = None
 canvas = None

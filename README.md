@@ -28,7 +28,7 @@ Shameless plug: I work primarily as a software consultant.  If you or your compa
 
 ## Software Developer Installation
 
-Currently targeting Python 3.7
+Currently targeting Python 3.12.5
 
 Get the dependencies with:
 
