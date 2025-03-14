@@ -313,7 +313,8 @@ class GeoPointCloud:
 
         try:
             self.addDataSet(X, Y, Z, I, C)
-        except ValueError:
+        except ValueError as e:
+            print(f"ValueError: {e}") # Include the error message
             print(X, Y, Z, I, C)
             
         # Need to store the lowest coordinates in case we cropped the image by not inserting invalid pixels
