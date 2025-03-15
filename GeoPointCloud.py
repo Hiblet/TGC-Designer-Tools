@@ -297,8 +297,11 @@ class GeoPointCloud:
                 tmpz = image[row, column]
                 if isinstance(tmpz, (float, int)):
                     z = tmpz
-                else:
+                elif isinstance(tmpz, (list, tuple, np.ndarray)): # Check if it's a sequence
                     z = tmpz[0]
+                else:
+                    print(f"Unexpected data type: {type(tmpz)}") # Log unexpected data types
+                    z = 0  # Provide a default value or handle the error
 
                 if math.isfinite(z):
                     x, y = self.cv2ToENU(row, column, image_scale)
@@ -310,7 +313,8 @@ class GeoPointCloud:
 
         try:
             self.addDataSet(X, Y, Z, I, C)
-        except ValueError:
+        except ValueError as e:
+            print(f"ValueError: {e}") # Include the error message
             print(X, Y, Z, I, C)
             
         # Need to store the lowest coordinates in case we cropped the image by not inserting invalid pixels
