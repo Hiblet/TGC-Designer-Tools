@@ -53,7 +53,7 @@ def proj_from_epsg(epsg, printf=print):
         return None, 0.0
     if epsg is not None:
         printf("Overwriting projection with EPSG:" + str(epsg))
-        proj = pyproj.Proj(init='epsg:'+str(epsg))
+        proj = pyproj.Proj(init='epsg:'+str(epsg), preserve_units=False)
         unit = get_unit_multiplier_from_epsg(epsg)
         return (proj, unit)
     return None, 0.0
