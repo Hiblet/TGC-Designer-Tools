@@ -534,7 +534,7 @@ def addOSMToTGC(course_json, geopointcloud, osm_result, x_offset=0.0, y_offset=0
                         continue
 
                     fw_spline = newFairway(nds)
-                    course_json["surfaceSplines"].append(newFairway(nds))
+                    course_json["surfaceSplines"].append(fw_spline)
 
     # Insert all the found holes
     for key in sorted(hole_dictionary):
