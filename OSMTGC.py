@@ -357,7 +357,7 @@ def getOSMData(bottom_lat, left_lon, top_lat, right_lon, printf=print):
     # Order is South, West, North, East
     coord_string = str(bottom_lat) + "," + str(left_lon) + "," + str(top_lat) + "," + str(right_lon)
     try:
-        query = "(node(" + coord_string + ");way(" + coord_string + "););out;"
+        query = "(node(" + coord_string + ");way(" + coord_string + ");rel(" + coord_string + "););out;"
         printf("OpenStreetMap Overpass query: " + query)
         return op.query(query) # Request both nodes and ways for the region of interest using a union
     except overpy.exception.OverPyException:
@@ -389,12 +389,16 @@ def addOSMToTGC(course_json, geopointcloud, osm_result, x_offset=0.0, y_offset=0
 
     hole_dictionary = dict() # Holes must be ordered by hole_num.  Must keep track of return order just in case data doesn't have hole number
     num_ways = len(osm_result.ways)
+    num_rels = len(osm_result.relations)
     last_print_time = time.time()
+    way_dict = {}
+
     for n, way in enumerate(osm_result.ways):
         if time.time() > last_print_time + status_print_duration:
             last_print_time = time.time()
             printf(str(round(100.0*float(n) / num_ways, 2)) + "% through OpenStreetMap Ways")
 
+        way_dict[way.id] = way
         golf_type = way.tags.get("golf", None)
         waterway_type = way.tags.get("waterway", None)
         building_type = way.tags.get("building", None)
@@ -501,6 +505,36 @@ def addOSMToTGC(course_json, geopointcloud, osm_result, x_offset=0.0, y_offset=0
                 course_json["surfaceSplines"].append(newWalkingPath(nds, area=area))
         elif amenity_type == "parking" and golf_cart_type is not None and golf_cart_type != "no" and options_dict.get('cartpath', True):
             course_json["surfaceSplines"].append(newCartPath(nds, area=True))
+
+    for n, rel in enumerate(osm_result.relations):
+        if time.time() > last_print_time + status_print_duration:
+            last_print_time = time.time()
+            printf(str(round(100.0*float(n) / num_rels, 2)) + "% through OpenStreetMap Relations")
+
+        golf_type = rel.tags.get("golf", None)
+
+        if golf_type == "fairway" and options_dict.get('fairway', True):
+            for member in rel.members:
+                if isinstance(member, overpy.RelationWay) and member.role == "outer":
+                    wayref = way_dict[member.ref]
+
+                    nds = []
+                    try:
+                        for node in wayref.get_nodes(resolve_missing=True): # Allow automatically resolving missing nodes, but this is VERY slow with the API requests, try to request beforehand
+                            nds.append(geopointcloud.latlonToTGC(node.lat, node.lon, x_offset, y_offset))
+                    except overpy.exception.OverPyException:
+                        printf("OpenStreetMap servers are too busy right now.  Try running this tool later.")
+                        return []
+
+                    # Check this shapes bounding box against the limits of the terrain, don't draw outside this bounds
+                    # Left, Top, Right, Bottom
+                    nbb = nodeBoundingBox(nds)
+                    if nbb[0] < ul_tgc[0] or nbb[1] > ul_tgc[2] or nbb[2] > lr_tgc[0] or nbb[3] < lr_tgc[2]:
+                        # Off of map, skip
+                        continue
+
+                    fw_spline = newFairway(nds)
+                    course_json["surfaceSplines"].append(newFairway(nds))
 
     # Insert all the found holes
     for key in sorted(hole_dictionary):
