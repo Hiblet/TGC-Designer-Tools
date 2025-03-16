@@ -15,8 +15,8 @@ from GeoPointCloud import *
 def get_unit_multiplier_from_epsg(epsg):
     # Can't find any lightweight way to do this, but I depend heavily on pyproj right now
     # Until there's a better way, get the unit by converting (1,0) from 'unit' to 'meter'
-    meter_proj = pyproj.Proj(init='epsg:'+str(epsg), preserve_units=False) # Forces meter
-    unit_proj = pyproj.Proj(init='epsg:'+str(epsg), preserve_units=True) # Stays in native unit
+    meter_proj = pyproj.Proj('epsg:'+str(epsg), preserve_units=False) # Forces meter
+    unit_proj = pyproj.Proj('epsg:'+str(epsg), preserve_units=True) # Stays in native unit
     try:
         # Due to numerical precision and the requirements for foot vs survey foot
         # Use a larger number for the transform
@@ -35,7 +35,7 @@ def is_epsg_datum(epsg):
     # I can't determine which are valid, so I'm going to convert from meters to degrees
     # If it's degrees to degrees, it won't modify the number
     # The coordinate systems we will look for are limited between -180.0 and 180.0 output
-    meter_proj = pyproj.Proj(init='epsg:'+str(epsg), preserve_units=False) # Forces meter
+    meter_proj = pyproj.Proj('epsg:'+str(epsg), preserve_units=False) # Forces meter
     degree_proj = pyproj.Proj(proj='latlong', datum='WGS84')
     try:
         scale_value = 1.0e6
@@ -53,7 +53,7 @@ def proj_from_epsg(epsg, printf=print):
         return None, 0.0
     if epsg is not None:
         printf("Overwriting projection with EPSG:" + str(epsg))
-        proj = pyproj.Proj(init='epsg:'+str(epsg), preserve_units=False)
+        proj = pyproj.Proj('epsg:'+str(epsg), preserve_units=False)
         unit = get_unit_multiplier_from_epsg(epsg)
         return (proj, unit)
     return None, 0.0
