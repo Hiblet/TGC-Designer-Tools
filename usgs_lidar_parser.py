@@ -100,57 +100,59 @@ def load_usgs_directory(d, force_epsg=None, force_unit=None, printf=print):
                 if force_epsg is not None:
                     proj, unit = proj_from_epsg(force_epsg, printf=printf)
 
-                # Try to get projection data from laspy
-                for v in las.header.vlrs:
-                    try:
-                        proj = v.parse_crs()
+                if proj is None:    
+                    # Try to get projection data from laspy
+                    for v in las.header.vlrs:
+                        try:
+                            proj = v.parse_crs()
 
-                        if proj is not None:
-                            epsg = proj.to_dict()
-                            if 'units' in epsg:
-                                if epsg['units'] == 'm':
-                                    unit = 1.0
+                            if proj is not None:
+                                epsg = proj.to_dict()
+                                if 'units' in epsg:
+                                    if epsg['units'] == 'm':
+                                        unit = 1.0
+                                    else:
+                                        unit = 0.3048
                                 else:
-                                    unit = 0.3048
-                            else:
-                                unit = 0.0
+                                    unit = 0.0
 
-                    except Exception as e:
-                        print(e)
+                        except Exception as e:
+                            print(e)
+                            proj = None
 
-                    parsed_body = v.record_data_bytes()
+                        parsed_body = v.record_data_bytes()
 
-                    # Look for GEOTIFF tags or something?  This is a list of values and EPSG codes
-                    if proj is None and parsed_body is not None and len(parsed_body) > 3:
-                        try:
-                            num_records = parsed_body[3]
-                            for i in range(0, num_records):
-                                key = parsed_body[4 + 4*i]
-                                value_offset = parsed_body[7 + 4*i]
-                                try:
-                                    proj, unit = proj_from_epsg(value_offset, printf=printf)
-                                    if proj is not None:
-                                        printf("Found EPSG from lidar file: " + str(value_offset))
-                                        break
-                                except:
-                                    pass
-                        except:
-                            pass
+                        # Look for GEOTIFF tags or something?  This is a list of values and EPSG codes
+                        if proj is None and parsed_body is not None and len(parsed_body) > 3:
+                            try:
+                                num_records = parsed_body[3]
+                                for i in range(0, num_records):
+                                    key = parsed_body[4 + 4*i]
+                                    value_offset = parsed_body[7 + 4*i]
+                                    try:
+                                        proj, unit = proj_from_epsg(value_offset, printf=printf)
+                                        if proj is not None:
+                                            printf("Found EPSG from lidar file: " + str(value_offset))
+                                            break
+                                    except:
+                                        pass
+                            except:
+                                pass
 
-                    # Projection coordinates list
-                    if proj is None and parsed_body and len(parsed_body) == 10:
-                        # (0.0, 500000.0, 0.0, -75.0, 0.9996, 1.0, 6378137.0, 298.2572221010042, 0.0, 0.017453292519943278)
-                        # pyproj.Proj('+proj=tmerc +datum=NAD83 +ellps=GRS80 +a=6378137.0 +f=298.2572221009999 +k=0.9996 +x_0=500000.0 +y_0=0.0 +lon_0=-75.0 +lat_0=0.0 +units=m +axis=enu ', preserve_units=True)
-                        try:
-                            sys = 'tmerc' # Don't think any other format is used
-                            datum = 'NAD83'
-                            ellips = 'GRS80' # Assume this for now, can't find any evidence another is used for lidar
-                            proj = pyproj.Proj(proj=sys, datum=datum, ellps=ellips, a=parsed_body[6], f=parsed_body[7], k=parsed_body[4], \
-                                               x_0=parsed_body[1], y_0=parsed_body[0], lon_0=parsed_body[3], lat_0=parsed_body[2], units='m', axis='enu')
-                            unit = parsed_body[5]
-                            printf("Found Projection parameters from lidar file")
-                        except:
-                            pass
+                        # Projection coordinates list
+                        if proj is None and parsed_body and len(parsed_body) == 10:
+                            # (0.0, 500000.0, 0.0, -75.0, 0.9996, 1.0, 6378137.0, 298.2572221010042, 0.0, 0.017453292519943278)
+                            # pyproj.Proj('+proj=tmerc +datum=NAD83 +ellps=GRS80 +a=6378137.0 +f=298.2572221009999 +k=0.9996 +x_0=500000.0 +y_0=0.0 +lon_0=-75.0 +lat_0=0.0 +units=m +axis=enu ', preserve_units=True)
+                            try:
+                                sys = 'tmerc' # Don't think any other format is used
+                                datum = 'NAD83'
+                                ellips = 'GRS80' # Assume this for now, can't find any evidence another is used for lidar
+                                proj = pyproj.Proj(proj=sys, datum=datum, ellps=ellips, a=parsed_body[6], f=parsed_body[7], k=parsed_body[4], \
+                                                   x_0=parsed_body[1], y_0=parsed_body[0], lon_0=parsed_body[3], lat_0=parsed_body[2], units='m', axis='enu')
+                                unit = parsed_body[5]
+                                printf("Found Projection parameters from lidar file")
+                            except:
+                                pass
 
                 # Wasn't in the las files, do the difficult search in metadata xmls
                 if proj is None:
