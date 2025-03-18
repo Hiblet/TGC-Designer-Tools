@@ -89,3 +89,39 @@ tee_colors = {
     1: "black",
     5: "gold"
 }
+
+version_tags = {
+    19: {
+        'tees' : 'teePositions',
+        'pins' : 'pinPositions',
+        'holes' : 'holes',
+        'crowd' : 'crowdLocations',
+        'splines' : 'surfaceSplines',
+        'surfaces' : 'surfaces',
+        'oob' : 'outOfBounds',
+        'objects' : 'placedObjects2',
+        'file_encoding' : 'utf-16'
+    },
+    23: {
+        'tees' : 'teePositions',
+        'pins' : 'pins',
+        'holes' : 'holes2',
+        'crowd' : 'crowdLocations',
+        'splines' : 'surfaceSplines2',
+        'surfaces' : 'surfaces',
+        'oob' : 'outOfBounds',
+        'objects' : 'placedObjects3',
+        'file_encoding' : 'utf-16-le'
+    },
+    25: {
+        'tees' : 'tees',
+        'pins' : 'pins',
+        'holes' : 'holes3',
+        'crowd' : 'crowdMap2',
+        'splines' : 'surfaceSplines2',
+        'surfaces' : 'surfaces2',
+        'oob' : 'outOfBounds2',
+        'objects' : 'placedObjects4',
+        'file_encoding' : 'utf-16-le'
+    }
+}

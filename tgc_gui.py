@@ -36,6 +36,7 @@ course_json = None
 
 scorecard = None
 inner_frame = None # Scorecard inner frame
+course_version = -1
 
 def drawPlaceholder():
     global root
@@ -44,6 +45,18 @@ def drawPlaceholder():
     default_im = ImageTk.PhotoImage(image=iim)
     canvas.itemconfig(canvas_image, image = default_im)
     root.update()
+
+def getCourseVersion(course_json):
+    course_version = -1
+
+    if 'useV43AltSurfaceSplineScale' in course_json and 'holes3' in course_json:
+        course_version = 25
+    elif 'useV30Rough' in course_json and 'holes2' in course_json:
+        course_version = 23
+    elif 'useV19DetailPlacement' in course_json and 'holes' in course_json:
+        course_version = 19
+
+    return course_version
 
 def scorecardSumList(l):
     front = 0
@@ -69,7 +82,8 @@ def scorecardSumList(l):
 def drawScorecard(course_json):
     global scorecard
     global inner_frame
-
+    global course_version
+    
     # Which Tkinter colors to draw on the chart
     hole_color = "snow"
     par_color = "bisque"
@@ -107,7 +121,7 @@ def drawScorecard(course_json):
     inner_frame.pack(padx=10, pady=5, fill=tk.BOTH, expand=True)
 
     # Par and yardages values from holes
-    pars, pin_counts, tees = tgc_tools.get_hole_information(course_json)
+    pars, pin_counts, tees = tgc_tools.get_hole_information(course_json, course_version)
 
     # Determine number of valid tee sets
     # And fill in missing information for tees that weren't placed
@@ -196,7 +210,9 @@ def drawCourse(cjson):
     global root
     global canvas
     global canvas_image
-    data = drawCourseAsImage(cjson)
+    global course_version
+
+    data = drawCourseAsImage(cjson, course_version)
     im = Image.fromarray((255.0*data).astype(np.uint8), 'RGB').resize((image_width, image_height), Image.NEAREST)
     im = im.transpose(Image.FLIP_TOP_BOTTOM)
     cim = ImageTk.PhotoImage(image=im)
@@ -210,6 +226,8 @@ def drawCourse(cjson):
 def getCourseDirectory(output):
     global root
     global course_json
+    global course_version
+    
     cdir =  tk.filedialog.askdirectory(initialdir = ".", title = "Select course directory")
     if cdir:
         root.filename = cdir
@@ -220,8 +238,9 @@ def getCourseDirectory(output):
         try:
             course_json = tgc_tools.get_course_json(root.filename)
             name_entry.configure(state='normal')
-            course_name_var.set(course_json["name"])
             if course_json is not None:
+                course_name_var.set(course_json["name"])
+                course_version = getCourseVersion(course_json)    
                 drawCourse(course_json)
         except:
             pass
@@ -272,6 +291,7 @@ course_types = [
 def importCourseAction():
     global root
     global course_json
+    global course_version
 
     if not root or not hasattr(root, 'filename'):
         alert("Select a course directory before importing a .course file")
@@ -284,8 +304,10 @@ def importCourseAction():
         tgc_tools.unpack_course_file(root.filename, input_course)
         course_json = tgc_tools.get_course_json(root.filename)
         name_entry.configure(state='normal')
-        course_name_var.set(course_json["name"])
-        drawCourse(course_json)
+        if course_json is not None:
+            course_name_var.set(course_json["name"])
+            course_version = getCourseVersion(course_json)
+            drawCourse(course_json)
 
 def exportCourseAction():
     global root
@@ -308,17 +330,21 @@ def exportCourseAction():
             # Need to update the metadata file or it won't show up right in the course list
             tgc_tools.set_course_metadata_name(root.filename, course_json["name"])
         drawPlaceholder()
-        tgc_tools.pack_course_file(root.filename, None, dest_file, course_json)
+        tgc_tools.pack_course_file(root.filename, None, dest_file, course_json, course_version)
         drawCourse(course_json)
 
 def autoPositionAction():
     global course_json
+    global course_version
+
     drawPlaceholder()
-    course_json = tgc_tools.auto_position_course(course_json)
+    course_json = tgc_tools.auto_position_course(course_json, course_version)
     drawCourse(course_json)
 
 def shiftAction(ew_entry, ns_entry, stype="course"):
     global course_json
+    global course_version
+
     try:
         easting_shift = float(ew_entry.get())
         northing_shift = float(ns_entry.get())
@@ -327,17 +353,19 @@ def shiftAction(ew_entry, ns_entry, stype="course"):
         return
     drawPlaceholder()
     if stype == "course":
-        course_json = tgc_tools.shift_course(course_json, easting_shift, northing_shift)
+        course_json = tgc_tools.shift_course(course_json, easting_shift, northing_shift, course_version)
     elif stype == "terrain":
-        course_json = tgc_tools.shift_terrain(course_json, easting_shift, northing_shift)
+        course_json = tgc_tools.shift_terrain(course_json, easting_shift, northing_shift, course_version)
     elif stype == "features":
-        course_json = tgc_tools.shift_features(course_json, easting_shift, northing_shift)
+        course_json = tgc_tools.shift_features(course_json, easting_shift, northing_shift, course_version)
     else:
         print("No action taken: Unknown shift type: " + stype)
     drawCourse(course_json)
 
 def rotateAction(rotate_entry):
     global course_json
+    global course_version
+
     try:
         rotation_degrees = float(rotate_entry.get())
         rotation = rotation_degrees * math.pi / 180.0
@@ -346,11 +374,13 @@ def rotateAction(rotate_entry):
         return
 
     drawPlaceholder()
-    course_json = tgc_tools.rotate_course(course_json, -rotation)
+    course_json = tgc_tools.rotate_course(course_json, -rotation, course_version)
     drawCourse(course_json)
 
 def elevateAction(elevate_entry, auto=False):
     global course_json
+    global course_version
+
     elevation_shift = None
     if not auto:
         try:
@@ -365,7 +395,7 @@ def elevateAction(elevate_entry, auto=False):
         return
 
     drawPlaceholder()
-    course_json = tgc_tools.elevate_terrain(course_json, elevation_shift)
+    course_json = tgc_tools.elevate_terrain(course_json, elevation_shift, course_version=course_version)
     drawCourse(course_json)
 
 numpy_types = [
@@ -383,6 +413,8 @@ numpy_holes_types = [
 
 def separateAction(stype="terrain"):
     global course_json
+    global course_version
+
     if stype == "terrain":
         name = "Terrain"
         f = tgc_tools.strip_terrain
@@ -401,11 +433,13 @@ def separateAction(stype="terrain"):
 
     if dest_file:
         drawPlaceholder()
-        course_json = f(course_json, dest_file)
+        course_json = f(course_json, dest_file, course_version)
         drawCourse(course_json)
 
 def insertAction(stype="terrain"):
     global course_json
+    global course_version
+
     if stype == "terrain":
         name = "Terrain"
         f = tgc_tools.insert_terrain
@@ -424,7 +458,7 @@ def insertAction(stype="terrain"):
 
     if input_file:
         drawPlaceholder()
-        course_json = f(course_json, input_file)
+        course_json = f(course_json, input_file, course_version)
         drawCourse(course_json)
 
 def confirmCourse(popup, new_course_json):
@@ -523,6 +557,7 @@ def runLidar(scale_entry, epsg_entry, printf):
 def generateCourseFromLidar(options_entries_dict, printf):
     global root
     global course_json
+    global course_version
 
     if not root or not hasattr(root, 'filename'):
         alert("Select a course directory before processing heightmap file")
@@ -544,9 +579,14 @@ def generateCourseFromLidar(options_entries_dict, printf):
     heightmap_dir_path = tk.filedialog.askdirectory(initialdir=root.filename, title="Select heightmap and mask files directory")
     if heightmap_dir_path:
         drawPlaceholder()
-        course_json = tgc_image_terrain.generate_course(course_json, heightmap_dir_path, options_dict=options_dict, printf=printf)
-        drawCourse(course_json)
-        printf("Done Rendering Course Preview")
+        course_json = tgc_image_terrain.generate_course(course_json, heightmap_dir_path, options_dict=options_dict, 
+                printf=printf, course_version=course_version) 
+        if course_json is not None:
+            drawCourse(course_json)
+            printf("Done Rendering Course Preview")
+        else:
+            printf("failed to generate course")
+            print(course_version)
 
 osm_types = [
     ('Open Street Map Exports', '*.osm'), 
@@ -579,7 +619,8 @@ def importOSMFile(options_entries_dict, printf):
             xml_data = f.read()
             printf("Loading OpenStreetMap Data from " + str(osm_file))
             drawPlaceholder()
-            course_json = tgc_image_terrain.generate_flat_course(course_json, xml_data, options_dict=options_dict, printf=printf)
+            course_json = tgc_image_terrain.generate_flat_course(course_json, xml_data, options_dict=options_dict, 
+                printf=printf, course_version=course_version)
             drawCourse(course_json)
             printf("Done Rendering Course Preview")
 

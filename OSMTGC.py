@@ -330,8 +330,16 @@ def addHalfwayPoint(points):
 
     return (first, new_point, last)
 
-def newHole(userpar, points):
-    hole = json.loads('{"waypoints": [], "teePositions": [],"pinPositions": [{"x": 0.0,"y": 0.0,"z": 0.0}],"greenRadius": 0.0,"teeRadius": 0.0,"fairwayRadius": 0.0, \
+def newHole(userpar, points, course_version):
+    if course_version not in tgc_definitions.version_tags:
+        print("invalid version")
+        print(course_version)
+        return None
+
+    tee_tag = tgc_definitions.version_tags[course_version]['tees']
+    pin_tag = tgc_definitions.version_tags[course_version]['pins']
+
+    hole = json.loads('{"waypoints": [], "'+tee_tag+'": [],"'+pin_tag+'": [{"x": 0.0,"y": 0.0,"z": 0.0}],"greenRadius": 0.0,"teeRadius": 0.0,"fairwayRadius": 0.0, \
             "fairwayStart": 0.0,"fairwayEnd": 0.0,"fairwayNoiseScale": -1.0,"roughRadius": 0.0,"heavyRoughRadius": 0.0,"hazardGreenCount": 0.0,"hazardFairwayCount": 0.0, \
             "hazardFairwayPeriod": -1.0,"teeHeight": -1.0, "greenSeed": 206208328, "fairwaySeed": 351286870,"teeTexture": -1, \
             "creatorDefinedPar": -1, "name": "","flagOffset": {"x": 0.0,"y": 0.0},"par": 4}')
@@ -348,7 +356,7 @@ def newHole(userpar, points):
     for p in points:
         hole["waypoints"].append(getwaypoint3D(p[0], 0.0, p[2]))
 
-    hole["teePositions"].append(getwaypoint3D(points[0][0], 0.0, points[0][2]))
+    hole[tee_tag].append(getwaypoint3D(points[0][0], 0.0, points[0][2]))
 
     return hole
 
@@ -364,15 +372,31 @@ def getOSMData(bottom_lat, left_lon, top_lat, right_lon, printf=print):
         printf("OpenStreetMap servers are too busy right now.  Try running this tool later.")
         return None
 
-def clearFeatures(course_json):
+def clearFeatures(course_json, course_version):
+    if course_version not in tgc_definitions.version_tags:
+        print("invalid version")
+        print(course_version)
+        return None
+
+    hole_tag = tgc_definitions.version_tags[course_version]['holes']
+    spline_tag = tgc_definitions.version_tags[course_version]['splines']
+
     # Clear splines?  Make this optional
-    course_json["surfaceSplines"] = []
+    course_json[spline_tag] = []
     # Game will crash if more than 18 holes found, so always clear holes
-    course_json["holes"] = []
+    course_json[hole_tag] = []
     return course_json
 
-def addOSMToTGC(course_json, geopointcloud, osm_result, x_offset=0.0, y_offset=0.0, options_dict={}, spline_configuration_json=None, printf=print):
+def addOSMToTGC(course_json, geopointcloud, osm_result, x_offset=0.0, y_offset=0.0, options_dict={}, spline_configuration_json=None, printf=print, course_version=-1):
     global spline_configuration
+
+    if course_version not in tgc_definitions.version_tags:
+        print("invalid version")
+        print(course_version)
+        return None
+
+    hole_tag = tgc_definitions.version_tags[course_version]['holes']    
+    spline_tag = tgc_definitions.version_tags[course_version]['splines']
 
     # Ways represent features composed of many lat/long points (nodes)
     # We can convert these directly into the game's splines
@@ -385,7 +409,7 @@ def addOSMToTGC(course_json, geopointcloud, osm_result, x_offset=0.0, y_offset=0
     ul_tgc = geopointcloud.enuToTGC(*ul_enu, 0.0)
     lr_tgc = geopointcloud.enuToTGC(*lr_enu, 0.0)
 
-    course_json = clearFeatures(course_json)
+    course_json = clearFeatures(course_json, course_version)
 
     hole_dictionary = dict() # Holes must be ordered by hole_num.  Must keep track of return order just in case data doesn't have hole number
     num_ways = len(osm_result.ways)
@@ -431,26 +455,26 @@ def addOSMToTGC(course_json, geopointcloud, osm_result, x_offset=0.0, y_offset=0
 
         if golf_type is not None:
             if golf_type == "green" and options_dict.get('green', True):
-                course_json["surfaceSplines"].append(newGreen(nds))
+                course_json[spline_tag].append(newGreen(nds))
             elif golf_type == "bunker" and options_dict.get('bunker', True):
-                course_json["surfaceSplines"].append(newBunker(nds))
+                course_json[spline_tag].append(newBunker(nds))
             elif golf_type == "tee" and options_dict.get('teebox', True):
-                course_json["surfaceSplines"].append(newTeeBox(nds))
+                course_json[spline_tag].append(newTeeBox(nds))
             elif golf_type == "fairway" and options_dict.get('fairway', True):
-                course_json["surfaceSplines"].append(newFairway(nds))
+                course_json[spline_tag].append(newFairway(nds))
             elif golf_type == "driving_range" and options_dict.get('range', True):
                 # Add as fairway
-                course_json["surfaceSplines"].append(newFairway(nds))
+                course_json[spline_tag].append(newFairway(nds))
             elif golf_type == "rough" and options_dict.get('rough', True):
-                course_json["surfaceSplines"].append(newRough(nds))
+                course_json[spline_tag].append(newRough(nds))
             elif (golf_type == "water_hazard" or golf_type == "lateral_water_hazard") and options_dict.get('water', True):
-                course_json["surfaceSplines"].append(newWaterHazard(nds, area=True))
+                course_json[spline_tag].append(newWaterHazard(nds, area=True))
             elif golf_type == "cartpath" and options_dict.get('cartpath', True):
-                course_json["surfaceSplines"].append(newCartPath(nds, area=area))
+                course_json[spline_tag].append(newCartPath(nds, area=area))
             elif golf_type == "path" and options_dict.get('path', True):
-                course_json["surfaceSplines"].append(newWalkingPath(nds, area=area))
+                course_json[spline_tag].append(newWalkingPath(nds, area=area))
             elif golf_type == "clubhouse" and options_dict.get('building', True):
-                course_json["surfaceSplines"].append(newBuilding(nds))
+                course_json[spline_tag].append(newBuilding(nds))
             elif golf_type == "hole" and options_dict.get('hole', True):
                 # Only add holes for the course we're interested in
                 name_filter = options_dict.get('hole_name_filter', None)
@@ -469,7 +493,7 @@ def addOSMToTGC(course_json, geopointcloud, osm_result, x_offset=0.0, y_offset=0
                     printf("ERROR: There is an invalid character saved to OpenStreetMap for par or hole number: " + str(way.tags))
                     par = -1
                     hole_num = -1
-                hole = newHole(par, nds)
+                hole = newHole(par, nds, course_version)
                 if hole is not None:
                     if hole_num == 0:
                         hole_num = len(hole_dictionary) + 1
@@ -479,14 +503,14 @@ def addOSMToTGC(course_json, geopointcloud, osm_result, x_offset=0.0, y_offset=0
         elif waterway_type is not None:
             # Draw these as water hazards no matter what subtype they are
             if options_dict.get('water', True):
-                course_json["surfaceSplines"].append(newWaterHazard(nds, area=area))
+                course_json[spline_tag].append(newWaterHazard(nds, area=area))
         elif building_type is not None:
             # Draw these as buildings no matter what subtype they are
             if options_dict.get('building', True):
-                course_json["surfaceSplines"].append(newBuilding(nds))
+                course_json[spline_tag].append(newBuilding(nds))
         elif natural_type is not None:
             if natural_type == "wood" and options_dict.get('tree', True):
-                course_json["surfaceSplines"].append(newForest(nds))
+                course_json[spline_tag].append(newForest(nds))
         elif highway_type is not None and highway_type not in ["proposed", "construction"]:
             implicit_foot_access = {"motorway": "no",
                                     "motorway_link": "no",
@@ -496,15 +520,15 @@ def addOSMToTGC(course_json, geopointcloud, osm_result, x_offset=0.0, y_offset=0
             way_foot_access = foot_type if foot_type is not None else implicit_foot_access.get(highway_type, "yes")
 
             if golf_cart_type is not None and golf_cart_type != "no" and options_dict.get('cartpath', True):
-                course_json["surfaceSplines"].append(newCartPath(nds, area=area))
+                course_json[spline_tag].append(newCartPath(nds, area=area))
             elif way_foot_access != "no" and options_dict.get('path', True) and options_dict.get('all_osm_paths', True):
-                course_json["surfaceSplines"].append(newWalkingPath(nds, area=area))
+                course_json[spline_tag].append(newWalkingPath(nds, area=area))
         elif amenity_type == "parking" and golf_cart_type is not None and golf_cart_type != "no" and options_dict.get('cartpath', True):
-            course_json["surfaceSplines"].append(newCartPath(nds, area=True))
+            course_json[spline_tag].append(newCartPath(nds, area=True))
 
     # Insert all the found holes
     for key in sorted(hole_dictionary):
-        course_json["holes"].append(hole_dictionary[key])
+        course_json[hole_tag].append(hole_dictionary[key])
     
     trees = [] # Trees must be dealt with differently, and are passed up to a higher level.  Tree format is (x, z, radius, height)
     if options_dict.get('tree', False): # Trees are currently the only node right now.  This takes a lot of time to loop through, so skip if possible
@@ -532,7 +556,7 @@ def addOSMToTGC(course_json, geopointcloud, osm_result, x_offset=0.0, y_offset=0
     # Return the tree list for later use
     return trees
 
-def addOSMFromXML(course_json, xml_data, options_dict={}, printf=print):
+def addOSMFromXML(course_json, xml_data, options_dict={}, printf=print, course_version=-1):
     printf("Adding OpenStreetMap from XML")
     op = overpy.Overpass()
     result = op.parse_xml(xml_data)
@@ -553,7 +577,7 @@ def addOSMFromXML(course_json, xml_data, options_dict={}, printf=print):
     pc.addFromLatLon((latmin, lonmin), (latmax, lonmax), printf=printf)
 
     trees = addOSMToTGC(course_json, pc, result, x_offset=float(options_dict.get('adjust_ew', 0.0)), y_offset=float(options_dict.get('adjust_ns', 0.0)), \
-                options_dict=options_dict, printf=printf)
+                options_dict=options_dict, printf=printf, course_version=course_version)
 
     return course_json, trees
 
