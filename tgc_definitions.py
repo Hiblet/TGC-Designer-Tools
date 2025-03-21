@@ -119,7 +119,7 @@ version_tags = {
         'holes' : 'holes3',
         'crowd' : 'crowdMap2',
         'splines' : 'surfaceSplines2',
-        'surfaces' : 'surfaces2',
+        'surfaces' : 'surfaceBrushes',
         'oob' : 'outOfBounds2',
         'objects' : 'placedObjects4',
         'file_encoding' : 'utf-16-le'

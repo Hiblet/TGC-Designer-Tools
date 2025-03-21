@@ -190,42 +190,44 @@ def drawCourseAsImage(course_json, course_version):
     # Drawing as the black/dark blue, but it will show up different depending on scene
     surface2_color = (0.1, 0.2, 0.25)
     drawSplinesOnImage([s for s in ss if s["surface"] == 8], surface2_color, im, pc, image_scale, course_version)
-    #drawBrushesOnImage([b for b in uls if b["surfaceCategory"] == 8], surface2_color, im, pc, image_scale)
+    if uls is not None:
+        drawBrushesOnImage([b for b in uls if b is not None and b["surfaceCategory"] == 8], surface2_color, im, pc, image_scale)
 
     # Then draw heavy rough
     heavy_rough_color = (0, 0.3, 0.1)
     drawSplinesOnImage([s for s in ss if s["surface"] == 4], heavy_rough_color, im, pc, image_scale, course_version)
-    #drawBrushesOnImage([b for b in uls if b["surfaceCategory"] == 4], heavy_rough_color, im, pc, image_scale)
+    if uls is not None:
+        drawBrushesOnImage([b for b in uls if b is not None and b["surfaceCategory"] == 4], heavy_rough_color, im, pc, image_scale)
 
     # Then draw rough
     rough_color = (0.1, 0.35, 0.15)
     drawSplinesOnImage([s for s in ss if s["surface"] == 3], rough_color, im, pc, image_scale, course_version)
-    #drawBrushesOnImage([b for b in uls if b["surfaceCategory"] == 3], rough_color, im, pc, image_scale)
+    drawBrushesOnImage([b for b in uls if b is not None and b["surfaceCategory"] == 3], rough_color, im, pc, image_scale)
 
     # Next draw fairways
     fairway_color = (0, 0.75, 0.2)
     drawSplinesOnImage([s for s in ss if s["surface"] == 2], fairway_color, im, pc, image_scale, course_version)
-    #drawBrushesOnImage([b for b in uls if b["surfaceCategory"] == 2], fairway_color, im, pc, image_scale)
+    drawBrushesOnImage([b for b in uls if b is not None and b["surfaceCategory"] == 2], fairway_color, im, pc, image_scale)
 
     # Next draw greens
     green_color = (0, 1.0, 0.2)
     drawSplinesOnImage([s for s in ss if s["surface"] == 1], green_color, im, pc, image_scale, course_version) 
-    #drawBrushesOnImage([b for b in uls if b["surfaceCategory"] == 1], green_color, im, pc, image_scale)
+    drawBrushesOnImage([b for b in uls if b is not None and b["surfaceCategory"] == 1], green_color, im, pc, image_scale)
 
     # Next draw bunkers
     bunker_color = (0.85, 0.85, 0.7)
     drawSplinesOnImage([s for s in ss if s["surface"] == 0], bunker_color, im, pc, image_scale, course_version)
-    #drawBrushesOnImage([b for b in uls if b["surfaceCategory"] == 0], bunker_color, im, pc, image_scale)
+    drawBrushesOnImage([b for b in uls if b is not None and b["surfaceCategory"] == 0], bunker_color, im, pc, image_scale)
 
     # Surface #1 - Gravel?
     surface1_color = (0.7, 0.7, 0.7)
     drawSplinesOnImage([s for s in ss if s["surface"] == 7], surface1_color, im, pc, image_scale, course_version)
-    #drawBrushesOnImage([b for b in uls if b["surfaceCategory"] == 7], surface1_color, im, pc, image_scale)
+    drawBrushesOnImage([b for b in uls if b is not None and b["surfaceCategory"] == 7], surface1_color, im, pc, image_scale)
 
     # Surface #3 Cart Path
     cart_path_color = (0.3, 0.3, 0.3)
     drawSplinesOnImage([s for s in ss if s["surface"] == 10], cart_path_color, im, pc, image_scale, course_version)
-    #drawBrushesOnImage([b for b in uls if b["surfaceCategory"] == 10], cart_path_color, im, pc, image_scale)
+    drawBrushesOnImage([b for b in uls if b is not None and b["surfaceCategory"] == 10], cart_path_color, im, pc, image_scale)
 
     # Don't draw brush or surface 5 because this is are clear generated trees
     # Don't draw brush or surface 6 because this is clear generated objects
