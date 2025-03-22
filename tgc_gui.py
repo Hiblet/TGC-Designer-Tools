@@ -595,7 +595,8 @@ osm_types = [
 def importOSMFile(options_entries_dict, printf):
     global root
     global course_json
-
+    global course_version
+    
     if not root or not hasattr(root, 'filename'):
         alert("Select a course directory before importing OSM Flat Course")
         return

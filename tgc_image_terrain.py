@@ -290,7 +290,8 @@ def generate_course(course_json, heightmap_dir_path, options_dict={}, printf=pri
     return course_json
 
 def generate_flat_course(course_json, xml_data, options_dict={}, printf=print, course_version=-1):
-    course_json, osm_trees = OSMTGC.addOSMFromXML(course_json, xml_data, options_dict=options_dict, printf=printf)
+    course_json, osm_trees = OSMTGC.addOSMFromXML(course_json, xml_data, options_dict=options_dict, printf=printf,
+        course_version=course_version)
     if course_version not in tgc_definitions.version_tags:
         print("invalid version")
         print(course_version)
