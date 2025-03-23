@@ -190,14 +190,12 @@ def drawCourseAsImage(course_json, course_version):
     # Drawing as the black/dark blue, but it will show up different depending on scene
     surface2_color = (0.1, 0.2, 0.25)
     drawSplinesOnImage([s for s in ss if s["surface"] == 8], surface2_color, im, pc, image_scale, course_version)
-    if uls is not None:
-        drawBrushesOnImage([b for b in uls if b is not None and b["surfaceCategory"] == 8], surface2_color, im, pc, image_scale)
+    drawBrushesOnImage([b for b in uls if b is not None and b["surfaceCategory"] == 8], surface2_color, im, pc, image_scale)
 
     # Then draw heavy rough
     heavy_rough_color = (0, 0.3, 0.1)
     drawSplinesOnImage([s for s in ss if s["surface"] == 4], heavy_rough_color, im, pc, image_scale, course_version)
-    if uls is not None:
-        drawBrushesOnImage([b for b in uls if b is not None and b["surfaceCategory"] == 4], heavy_rough_color, im, pc, image_scale)
+    drawBrushesOnImage([b for b in uls if b is not None and b["surfaceCategory"] == 4], heavy_rough_color, im, pc, image_scale)
 
     # Then draw rough
     rough_color = (0.1, 0.35, 0.15)

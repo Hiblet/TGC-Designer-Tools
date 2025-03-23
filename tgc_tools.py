@@ -344,14 +344,17 @@ def shift_features(course_json, easting_shift, northing_shift, course_version):
     if course_version not in tgc_definitions.version_tags:
         return
 
+    dim2 = 'y'
     if course_version == 25:
         layer_json = course_json
+        dim2 = 'z'
     elif course_version == 23:
         layer_json = course_json["userLayers2"]
     else:
         layer_json = course_json["userLayers"]
     
     hole_tag = tgc_definitions.version_tags[course_version]['holes']
+    tee_tag = tgc_definitions.version_tags[course_version]['tees']
     crowd_tag = tgc_definitions.version_tags[course_version]['crowd']    
     spline_tag = tgc_definitions.version_tags[course_version]['splines']
     surface_tag = tgc_definitions.version_tags[course_version]['surfaces']
@@ -364,25 +367,33 @@ def shift_features(course_json, easting_shift, northing_shift, course_version):
             wp["pointOne"]["x"] += easting_shift
             wp["pointTwo"]["x"] += easting_shift
             wp["waypoint"]["x"] += easting_shift
-            wp["pointOne"]["y"] += northing_shift
-            wp["pointTwo"]["y"] += northing_shift
-            wp["waypoint"]["y"] += northing_shift
+            wp["pointOne"][dim2] += northing_shift
+            wp["pointTwo"][dim2] += northing_shift
+            wp["waypoint"][dim2] += northing_shift
 
     # Shift Holes
     for h in course_json[hole_tag]:
         for w in h["waypoints"]:
             w["x"] += easting_shift
             w["z"] += northing_shift
-        for t in h["teePositions"]:
-            t["x"] += easting_shift
-            t["z"] += northing_shift
+        for t in h[tee_tag]:
+            tp = t
+            if course_version == 25:
+                tp = tp["position"]
+            tp["x"] += easting_shift
+            tp["z"] += northing_shift
         # Pin positions are in relative coordinates and don't need shifted
 
     # Shift Brushes
+    oob_json = layer_json[oob_tag]
+    crowd_json = layer_json[crowd_tag]
+    if course_version == 25:
+        oob_json = oob_json["brushes"]
+        crowd_json = crowd_json["brushes"]
     for b in itertools.chain(layer_json[surface_tag],
                              layer_json["water"],
-                             layer_json[oob_tag],
-                             layer_json[crowd_tag]):
+                             oob_json,
+                             crowd_json):
         b['position']['x'] += easting_shift
         b['position']['z'] += northing_shift
 
@@ -415,8 +426,10 @@ def rotate_course(course_json, rotation_angle_radians, course_version):
     if course_version not in tgc_definitions.version_tags:
         return
 
+    dim2 = 'y'
     if course_version == 25:
         layer_json = course_json
+        dim2 = 'z'
     elif course_version == 23:
         layer_json = course_json["userLayers2"]
     else:
@@ -439,21 +452,29 @@ def rotate_course(course_json, rotation_angle_radians, course_version):
     s = math.sin(-rotation_angle_radians)
 
     # Rotate Brushes
+    oob_json = layer_json[oob_tag]
+    crowd_json = layer_json[crowd_tag]
+    if course_version == 25:
+        oob_json = oob_json["brushes"]
+        crowd_json = crowd_json["brushes"]
     for b in itertools.chain(layer_json["height"],
                              layer_json["terrainHeight"],
                              layer_json[surface_tag],
                              layer_json["water"],
-                             layer_json[oob_tag],
-                             layer_json[crowd_tag]):
-        rotateCoord(b['position'], 'x', 'z', c, s)
-        b['rotation']['y'] += rotation_angle_degrees
+                             oob_json,
+                             crowd_json):
+        try:
+            rotateCoord(b['position'], 'x', 'z', c, s)
+            b['rotation']['y'] += rotation_angle_degrees
+        except:
+            print(json.dumps(b))
 
     # Rotate splines
     for i in course_json[spline_tag]:
         for wp in i["waypoints"]:
-            rotateCoord(wp["pointOne"], 'x', 'y', c, s)
-            rotateCoord(wp["pointTwo"], 'x', 'y', c, s)
-            rotateCoord(wp["waypoint"], 'x', 'y', c, s)
+            rotateCoord(wp["pointOne"], 'x', dim2, c, s)
+            rotateCoord(wp["pointTwo"], 'x', dim2, c, s)
+            rotateCoord(wp["waypoint"], 'x', dim2, c, s)
 
     # Rotate Holes
     for h in course_json[hole_tag]:
@@ -466,7 +487,10 @@ def rotate_course(course_json, rotation_angle_radians, course_version):
             rotateCoord(tp, 'x', 'z', c, s)
         for p in h[pin_tag]:
             # Todo not 100% sure that this is correct
-            rotateCoord(p, 'x', 'y', c, s)
+            pp = p
+            if course_version == 25:
+                pp = p["position"]
+            rotateCoord(pp, 'x', 'y', c, s)
 
     # Rotate Objects
     for o in course_json[obj_tag]:
