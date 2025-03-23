@@ -257,6 +257,9 @@ def newCartPath(points, area=False, course_version=-1):
     # Cartpath is surface 10 (this is the one with Cartpath logo in Designer)
     # Remove secondary with 0 width
     cp["surface"] = tgc_definitions.featuresToSurfaces["cartpath"] # Cartpath, Surface #3
+    if course_version == 25:
+        cp["surface"] = tgc_definitions.featuresToSurfaces["surface1"] 
+        
     # 0 is 'not closed' and 3 is 'closed and filled' maybe a bitmask?
     if area:
         cp["state"] = 3
@@ -309,6 +312,9 @@ def newWaterHazard(points, area=True, course_version=-1):
         wh = newSpline(points, pathWidth=2.0, shrink_distance=0.0, tightSplines=False, secondarySurface="", secondaryWidth=0.0, spline_json=None, course_version=course_version)
     # Fill as mulch/surface #2 as a placeholder
     wh["surface"] = tgc_definitions.featuresToSurfaces["surface2"]
+    if course_version == 25:
+        wh["surface"] = tgc_definitions.featuresToSurfaces["surface3"]
+        
     if area:
         wh["state"] = 3
         wh["isClosed"] = True
