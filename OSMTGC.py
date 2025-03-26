@@ -371,7 +371,7 @@ def newHole(userpar, points, course_version):
     tee_tag = tgc_definitions.version_tags[course_version]['tees']
     pin_tag = tgc_definitions.version_tags[course_version]['pins']
 
-    hole = json.loads('{"waypoints": [], "'+tee_tag+'": [], "'+pin_tag+'": [{"x": 0.0,"y": 0.0,"z": 0.0}],"greenRadius": 0.0,"teeRadius": 0.0,"fairwayRadius": 0.0, \
+    hole = json.loads('{"waypoints": [], "'+tee_tag+'": [], "'+pin_tag+'": [],"greenRadius": 0.0,"teeRadius": 0.0,"fairwayRadius": 0.0, \
             "fairwayStart": 0.0,"fairwayEnd": 0.0,"fairwayNoiseScale": -1.0,"roughRadius": 0.0,"heavyRoughRadius": 0.0,"hazardGreenCount": 0.0,"hazardFairwayCount": 0.0, \
             "hazardFairwayPeriod": -1.0,"teeHeight": -1.0, "greenSeed": 206208328, "fairwaySeed": 351286870,"teeTexture": -1, \
             "creatorDefinedPar": -1, "name": "","flagOffset": {"x": 0.0,"y": 0.0},"par": 4}')
@@ -391,9 +391,14 @@ def newHole(userpar, points, course_version):
     if course_version == 25:
         tee = {}
         tee["position"] = getwaypoint3D(points[0][0], 0.0, points[0][2]) 
-        hole[tee_tag].append(tee)
+        pin = {}
+        pin["position"] = getwaypoint3D(0.0, 0.0, 0.0)
     else:
-        hole[tee_tag].append(getwaypoint3D(points[0][0], 0.0, points[0][2]))
+        tee = getwaypoint3D(points[0][0], 0.0, points[0][2])
+        pin = getwaypoint3D(0.0, 0.0, 0.0)
+
+    hole[tee_tag].append(tee)
+    hole[pin_tag].append(pin)
 
     return hole
 
