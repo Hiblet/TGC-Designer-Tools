@@ -242,7 +242,7 @@ def strip_terrain(course_json, output_file):
 
 def insert_terrain(course_json, input_file):
     print("Loading terrain from: " + input_file)
-    read_dictionary = np.load(input_file).item()
+    read_dictionary = np.load(input_file, allow_pickle=True).item()
 
     # Copy existing terrain and write to disk
     course_json["userLayers"]["terrainHeight"] = read_dictionary["terrainHeight"]
@@ -265,7 +265,7 @@ def strip_holes(course_json, output_file):
 
 def insert_holes(course_json, input_file):
     print("Loading holes from: " + input_file)
-    read_dictionary = np.load(input_file).item()
+    read_dictionary = np.load(input_file, allow_pickle=True).item()
 
     # Replace our holes from those in the file
     course_json['holes'] = read_dictionary['holes']
