@@ -278,7 +278,7 @@ def insert_terrain(course_json, input_file, course_version):
         layer_json = course_json["userLayers"]
 
     print("Loading terrain from: " + input_file)
-    read_dictionary = np.load(input_file).item()
+    read_dictionary = np.load(input_file, allow_pickle=True).item()
 
     # Copy existing terrain and write to disk
     layer_json["terrainHeight"] = read_dictionary["terrainHeight"]
@@ -311,7 +311,7 @@ def insert_holes(course_json, input_file, course_version):
     hole_tag = tgc_definitions.version_tags[course_version]['holes']
 
     print("Loading holes from: " + input_file)
-    read_dictionary = np.load(input_file).item()
+    read_dictionary = np.load(input_file, allow_pickle=True).item()
 
     # Replace our holes from those in the file
     course_json[hole_tag] = read_dictionary['holes']
