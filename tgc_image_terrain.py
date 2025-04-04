@@ -34,34 +34,53 @@ def get_object_item(x_pos, z_pos, rotation_degrees):
     output['rotation']['y'] = rotation_degrees
     return output
 
-def get_placed_object():
-    output = json.loads('{"Key":{"category":0,"type":0,"theme":true},"Value":{"items":[],"clusters":[]}}')
+def get_placed_object(course_version=-1):
+    key = '{"category":0,"type":0,"theme":true}'
+    if course_version >= 23:
+        key = '{"path":""}'
+
+    output = json.loads('{"Key":'+key+',"Value":{"items":[],"clusters":[]}}')
+    
     return output
 
-def get_trees(theme, tree_variety, trees):
+def get_trees(theme, tree_variety, trees, course_version=-1):
     # Get possible trees for this theme.  User can't easily change theme after this
     # But it's easy to rerun the import tool
     # Default to the default tree 0 if empty or not found
-    normal_tree_ids = tgc_definitions.normal_trees.get(theme, [0])
+    if course_version >= 23:
+        normal_tree_ids = tgc_definitions.normal_trees_2k.get(theme, [0])
+    else:
+        normal_tree_ids = tgc_definitions.normal_trees.get(theme, [0])
+
     if (not tree_variety) or len(normal_tree_ids) == 0:
         normal_tree_ids = [0]
     # Default to the normal trees if empty or not found
-    skinny_tree_ids = tgc_definitions.skinny_trees.get(theme, normal_tree_ids)
+    if course_version >= 23:
+        skinny_tree_ids = tgc_definitions.skinny_trees_2k.get(theme, normal_tree_ids)
+    else:
+        skinny_tree_ids = tgc_definitions.skinny_trees.get(theme, normal_tree_ids)
+
     if (not tree_variety) or len(skinny_tree_ids) == 0:
         skinny_tree_ids = []
 
     # Make an group for each type of tree, even if they may not be used
     normal_trees = []
     for tree_id in normal_tree_ids:
-        p = get_placed_object()
-        p['Key']['category'] = 0
-        p['Key']['type'] = tree_id
+        p = get_placed_object(course_version)
+        if course_version >= 23:
+            p['Key']['path'] = tgc_definitions.trees_2k[tree_id]
+        else:
+            p['Key']['category'] = 0
+            p['Key']['type'] = tree_id
         normal_trees.append(p)
     skinny_trees = []
     for tree_id in skinny_tree_ids:
-        p = get_placed_object()
-        p['Key']['category'] = 0
-        p['Key']['type'] = tree_id
+        p = get_placed_object(course_version)
+        if course_version >= 23:
+            p['Key']['path'] = tgc_definitions.trees_2k[tree_id]
+        else:
+            p['Key']['category'] = 0
+            p['Key']['type'] = tree_id
         skinny_trees.append(p)
 
     # Scale trees based on relative sizes
@@ -110,7 +129,7 @@ def get_trees(theme, tree_variety, trees):
             output.append(g)
     return output
 
-def get_lidar_trees(theme, tree_variety, lidar_trees, pc, mask, mask_pc, image_scale):
+def get_lidar_trees(theme, tree_variety, lidar_trees, pc, mask, mask_pc, image_scale, course_version=-1):
     # Convert to TGC coordinates
     trees = []
     for tree in lidar_trees:
@@ -124,7 +143,7 @@ def get_lidar_trees(theme, tree_variety, lidar_trees, pc, mask, mask_pc, image_s
             x, y, z = pc.projToTGC(easting, northing, 0.0)
             trees.append((x, z, r, h))
 
-    return get_trees(theme, tree_variety, trees)
+    return get_trees(theme, tree_variety, trees, course_version)
 
 # Set various constants that we need
 def set_constants(course_json, flatten_fairways=False, flatten_greens=False, course_latitude=None, printf=print):
@@ -256,7 +275,7 @@ def generate_course(course_json, heightmap_dir_path, options_dict={}, printf=pri
         # Need separate mask geopointcloud because pc is cropped
         mask_pc = GeoPointCloud()
         mask_pc.addFromImage(im, image_scale, read_dictionary['origin'], read_dictionary['projection'])
-        for o in get_lidar_trees(course_json['theme'], options_dict.get('tree_variety', False), read_dictionary['trees'], pc, mask, mask_pc, image_scale):
+        for o in get_lidar_trees(course_json['theme'], options_dict.get('tree_variety', False), read_dictionary['trees'], pc, mask, mask_pc, image_scale, course_version):
             course_json[obj_tag].append(o)
 
     # Download OpenStreetMaps Data for this smaller area
@@ -278,7 +297,7 @@ def generate_course(course_json, heightmap_dir_path, options_dict={}, printf=pri
 
         if len(osm_trees) > 0:
             printf("Adding trees from OpenStreetMap")
-            for o in get_trees(course_json['theme'], options_dict.get('tree_variety', False), osm_trees):
+            for o in get_trees(course_json['theme'], options_dict.get('tree_variety', False), osm_trees, course_version):
                 course_json[obj_tag].append(o)
 
     # Automatically adjust course elevation
@@ -301,7 +320,7 @@ def generate_flat_course(course_json, xml_data, options_dict={}, printf=print, c
 
     if len(osm_trees) > 0:
         printf("Adding trees from OpenStreetMap")
-        for o in get_trees(course_json['theme'], options_dict.get('tree_variety', False), osm_trees):
+        for o in get_trees(course_json['theme'], options_dict.get('tree_variety', False), osm_trees, course_version):
             course_json[obj_tag].append(o)
 
     return course_json
