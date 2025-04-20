@@ -894,6 +894,14 @@ options_entries_dict["purge_water"] = tk.BooleanVar()
 purgeWaterCheck = Checkbutton(courseSubFrame, text="Remove All Terrain Under Blue Mask", variable=options_entries_dict["purge_water"], fg=check_fg, bg=check_bg)
 purgeWaterCheck.deselect()
 
+options_entries_dict["smoothing"] = tk.IntVar()
+options_entries_dict["smoothing"].set(0)
+
+smoothing0 = tk.Radiobutton(courseSubFrame, text="No Smoothing", variable=options_entries_dict["smoothing"], value=0, fg=check_fg, bg=check_bg)
+smoothing1 = tk.Radiobutton(courseSubFrame, text="Light", variable=options_entries_dict["smoothing"], value=1, fg=check_fg, bg=check_bg)
+smoothing2 = tk.Radiobutton(courseSubFrame, text="Medium", variable=options_entries_dict["smoothing"], value=2, fg=check_fg, bg=check_bg)
+smoothing3 = tk.Radiobutton(courseSubFrame, text="Heavy", variable=options_entries_dict["smoothing"], value=3, fg=check_fg, bg=check_bg)
+
 # Pack the osmControlFrame
 courseSubFrame.pack(padx=5, pady=5, fill=X, expand=True)
 backgroundCheck.grid(row=0, columnspan=2, sticky=W, padx=5)
@@ -903,6 +911,11 @@ lidarTreeCheck.grid(row=2, columnspan=2, sticky=W, padx=5)
 treeVarietyCheck.grid(row=3, columnspan=2, sticky=W, padx=5)
 fillWaterCheck.grid(row=4, columnspan=2, sticky=W, padx=5)
 purgeWaterCheck.grid(row=5, columnspan=2, sticky=W, padx=5)
+Label(courseSubFrame, text="Terrain Smoothing", fg=check_fg, bg=check_bg).grid(row=6, column=0, pady=10)
+smoothing0.grid(row=7, columnspan=2, sticky=W, padx=5)
+smoothing1.grid(row=8, columnspan=2, sticky=W, padx=5)
+smoothing2.grid(row=9, columnspan=2, sticky=W, padx=5)
+smoothing3.grid(row=10, columnspan=2, sticky=W, padx=5)
 
 # Pack the two option frames side by side
 osmControlFrame.pack(side=LEFT, anchor=N, padx=5)

@@ -601,6 +601,28 @@ def addOSMToTGC(course_json, geopointcloud, osm_result, x_offset=0.0, y_offset=0
 
                     fw_spline = newFairway(nds, course_version)
                     course_json[spline_tag].append(fw_spline)
+        elif golf_type == "rough" and options_dict.get('rough', True):
+            for member in rel.members:
+                if isinstance(member, overpy.RelationWay) and member.role == "outer":
+                    wayref = way_dict[member.ref]
+
+                    nds = []
+                    try:
+                        for node in wayref.get_nodes(resolve_missing=True): # Allow automatically resolving missing nodes, but this is VERY slow with the API requests, try to request beforehand
+                            nds.append(geopointcloud.latlonToTGC(node.lat, node.lon, x_offset, y_offset))
+                    except overpy.exception.OverPyException:
+                        printf("OpenStreetMap servers are too busy right now.  Try running this tool later.")
+                        return []
+
+                    # Check this shapes bounding box against the limits of the terrain, don't draw outside this bounds
+                    # Left, Top, Right, Bottom
+                    nbb = nodeBoundingBox(nds)
+                    if nbb[0] < ul_tgc[0] or nbb[1] > ul_tgc[2] or nbb[2] > lr_tgc[0] or nbb[3] < lr_tgc[2]:
+                        # Off of map, skip
+                        continue
+
+                    fw_spline = newRough(nds, course_version)
+                    course_json[spline_tag].append(fw_spline)
 
     # Insert all the found holes
     for key in sorted(hole_dictionary):
