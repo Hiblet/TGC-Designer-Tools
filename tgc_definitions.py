@@ -52,6 +52,7 @@ themes = {
     13: "steppe",
     14: "autumn",
     15: "highlands",
+    50: "temperate"
 }
 
 normal_trees = {
@@ -67,6 +68,7 @@ normal_trees = {
     13: [0, 1, 2, 3, 4, 5, 6, 7],
     14: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
     15: [0, 1, 6, 7],
+    50: []
 }
 
 skinny_trees = {
@@ -82,6 +84,7 @@ skinny_trees = {
     13: [8, 9, 10, 11, 12, 13, 14, 15],
     14: [12, 15],
     15: [2, 3, 8, 9, 10, 22],
+    50: []
 }
 
 tee_colors = {
@@ -279,7 +282,47 @@ trees_2k = [
     "Assets/Foliage/SpeedTree8/Trees/Pine_White_W/Prefabs/Pine_White_W_013",
     "Assets/Foliage/SpeedTree8/Trees/Pine_White_W/Prefabs/Pine_White_W_023",
     "Assets/Foliage/SpeedTree8/Trees/Pine_White_W/Prefabs/Pine_White_W_024",
-    "Assets/Foliage/SpeedTree8/Trees/Pine_White_W/Prefabs/Pine_White_W_025"
+    "Assets/Foliage/SpeedTree8/Trees/Pine_White_W/Prefabs/Pine_White_W_025",
+    "Assets/Foliage/SpeedTree8/Trees/Cherry_Blossom/Prefabs/Cherry_Blossom_001",
+    "Assets/Foliage/SpeedTree8/Trees/Cherry_Blossom/Prefabs/Cherry_Blossom_002",
+    "Assets/Foliage/SpeedTree8/Trees/Cherry_Blossom/Prefabs/Cherry_Blossom_003",
+    "Assets/Foliage/SpeedTree8/Trees/Cherry_Blossom_FA/Prefabs/Cherry_Blossom_FA_001",
+    "Assets/Foliage/SpeedTree8/Trees/Cherry_Blossom_FA/Prefabs/Cherry_Blossom_FA_002",
+    "Assets/Foliage/SpeedTree8/Trees/Cherry_Blossom_FA/Prefabs/Cherry_Blossom_FA_003",
+    "Assets/Foliage/SpeedTree8/Trees/Spruce_Norway/Prefabs/Spruce_Norway_002",
+    "Assets/Foliage/SpeedTree8/Trees/Spruce_Norway/Prefabs/Spruce_Norway_004",
+    "Assets/Foliage/SpeedTree8/Trees/Maple_Silver/Prefabs/Maple_Silver_005",
+    "Assets/Foliage/SpeedTree8/Trees/Maple_Silver/Prefabs/Maple_Silver_009",
+    "Assets/Foliage/SpeedTree8/Trees/Wisteria_Pink/Prefabs/Wisteria_Pink_001",
+    "Assets/Foliage/SpeedTree8/Trees/Wisteria_Pink/Prefabs/Wisteria_Pink_002",
+    "Assets/Foliage/SpeedTree8/Trees/Wisteria_Pink/Prefabs/Wisteria_Pink_003",
+    "Assets/Foliage/SpeedTree/Trees/Red_Maple/Prefabs/Red_Maple_Desktop02",
+    "Assets/Foliage/SpeedTree/Trees/Red_Maple/Prefabs/Red_Maple_Desktop05",
+    "Assets/Foliage/SpeedTree8/Trees/Jungle_B/Prefabs/Jungle_B_005",
+    "Assets/Foliage/SpeedTree8/Trees/Maple_Aconitifolium/Prefabs/Maple_Aconitifolium_001",
+    "Assets/Foliage/SpeedTree8/Trees/Maple_Aconitifolium/Prefabs/Maple_Aconitifolium_002",
+    "Assets/Foliage/SpeedTree8/Trees/Maple_Aconitifolium/Prefabs/Maple_Aconitifolium_003",
+    "Assets/Foliage/SpeedTree8/Trees/Maple_Aconitifolium_FA/Prefabs/Maple_Aconitifolium_FA_001",
+    "Assets/Foliage/SpeedTree8/Trees/Maple_Aconitifolium_FA/Prefabs/Maple_Aconitifolium_FA_002",
+    "Assets/Foliage/SpeedTree8/Trees/Maple_Aconitifolium_FA/Prefabs/Maple_Aconitifolium_FA_003",
+    "Assets/Foliage/SpeedTree8/Trees/Maple_Aconitifolium_FB/Prefabs/Maple_Aconitifolium_FB_001",
+    "Assets/Foliage/SpeedTree8/Trees/Maple_Aconitifolium_FB/Prefabs/Maple_Aconitifolium_FB_002",
+    "Assets/Foliage/SpeedTree8/Trees/Maple_Aconitifolium_FB/Prefabs/Maple_Aconitifolium_FB_003",
+    "Assets/Foliage/SpeedTree8/Trees/Myrtle_Crape/Prefabs/Myrtle_Crape_A_001",
+    "Assets/Foliage/SpeedTree8/Trees/Myrtle_Crape/Prefabs/Myrtle_Crape_A_003",
+    "Assets/Foliage/SpeedTree/Trees/Southern_Live_Oak/Prefabs/SouthernLiveOak_Desktop_Moss06",
+    "Assets/Foliage/SpeedTree/Trees/Southern_Live_Oak/Prefabs/SouthernLiveOak_Desktop_Moss10",
+    "Assets/Foliage/SpeedTree/Trees/Southern_Live_Oak/Prefabs/SouthernLiveOak_Desktop_Moss11",
+    "Assets/Foliage/SpeedTree8/Trees/Pine_Black/Prefabs/Pine_Black_001",
+    "Assets/Foliage/SpeedTree8/Trees/Pine_Black/Prefabs/Pine_Black_002",
+    "Assets/Foliage/SpeedTree8/Trees/Pine_Black/Prefabs/Pine_Black_003",
+    "Assets/Foliage/SpeedTree8/Trees/Maple_Silver/Prefabs/Maple_Silver_011",
+    "Assets/Foliage/SpeedTree8/Trees/Wisteria_White/Prefabs/Wisteria_White_001",
+    "Assets/Foliage/SpeedTree8/Trees/Wisteria_White/Prefabs/Wisteria_White_002",
+    "Assets/Foliage/SpeedTree8/Trees/Wisteria_White/Prefabs/Wisteria_White_003",
+    "Assets/Foliage/SpeedTree8/Trees/Wisteria_Purple/Prefabs/Wisteria_Purple_001",
+    "Assets/Foliage/SpeedTree8/Trees/Wisteria_Purple/Prefabs/Wisteria_Purple_002",
+    "Assets/Foliage/SpeedTree8/Trees/Wisteria_Purple/Prefabs/Wisteria_Purple_003"
 ]
 
 normal_trees_2k = {
@@ -295,6 +338,9 @@ normal_trees_2k = {
     13: [  0,   1,   2,   3,   4,   6,   7,   8, 101, 102, 103],
     14: [ 18,  19,  23,  24,  50,  53,  54,  65,  74,  81, 126, 127],
     15: [ 16,  17,  50,  51,  61,  64, 123, 124],
+    50: [ 73, 147, 148, 149, 150, 151, 152, 155, 156, 157, 158, 159, 160, 162, 163, 
+         164, 165, 166, 167, 168, 169, 170, 171, 172, 173, 174, 175, 176, 177, 178, 
+         179, 180, 181, 182, 183, 184, 185, 186]
 } 
 
 skinny_trees_2k = {
@@ -303,11 +349,13 @@ skinny_trees_2k = {
     6:  [ 32,  36, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113],
     7:  [ 69,  70],
     8:  [ 44,  45,  46],
-    9:  [ 11,  12, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146],
+    9:  [ 11,  12, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 
+         143, 144, 145, 146],
     10: [ ],
     11: [ 10,  16,  17,  39,  42,  56,  69,  70],
     12: [ 11,  12,  13,  14,  38,  39,  58,  59,  60],
     13: [105, 106, 107, 108, 110, 111, 112, 113, 114, 115],
     14: [ 39,  42],
     15: [  9,  10,  40,  41,  42,  55],
+    50: [153, 154, 161]
 } 
