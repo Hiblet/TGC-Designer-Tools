@@ -100,7 +100,7 @@ def load_usgs_directory(d, force_epsg=None, force_unit=None, printf=print):
                 if force_epsg is not None:
                     proj, unit = proj_from_epsg(force_epsg, printf=printf)
 
-                if proj is None:    
+                if proj is None:
                     # Try to get projection data from laspy
                     for v in las.header.vlrs:
                         try:

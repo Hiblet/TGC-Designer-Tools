@@ -297,7 +297,7 @@ class GeoPointCloud:
                 tmpz = image[row, column]
                 if isinstance(tmpz, (float, int)):
                     z = tmpz
-                elif isinstance(tmpz, (list, tuple, np.ndarray)): # Check if it's a sequence
+                elif isinstance(tmpz, (list, tuple, numpy.ndarray)): # Check if it's a sequence
                     z = tmpz[0]
                 else:
                     print(f"Unexpected data type: {type(tmpz)}") # Log unexpected data types

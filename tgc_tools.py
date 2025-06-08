@@ -7,6 +7,7 @@ import math
 import numpy as np
 import os
 from pathlib import Path
+import tgc_definitions
 
 def base64GZDecode(data):
     gz_data = base64.b64decode(data)
@@ -96,7 +97,11 @@ def unpack_course_file(course_directory, course_file=None):
 
     return course_name
 
-def pack_course_file(course_directory, course_name=None, output_file=None, course_json=None):
+def pack_course_file(course_directory, course_name=None, output_file=None, course_json=None, course_version=-1):
+    if course_version not in tgc_definitions.version_tags:
+        return
+
+    file_encoding = tgc_definitions.version_tags[course_version]['file_encoding']    
     course_dir = Path(course_directory)
 
     output_path = None
@@ -122,9 +127,9 @@ def pack_course_file(course_directory, course_name=None, output_file=None, cours
                 desc_read = desc.read()
                 meta_read = meta.read()
                 thumb_read = thumb.read()
-                desc_encoded = base64GZEncode(desc_read.encode('utf-16'), 1).decode('utf-8')
-                meta_encoded = base64GZEncode(meta_read.encode('utf-16'), 1).decode('utf-8')
-                thumb_encoded = base64GZEncode(thumb_read.encode('utf-16'), 1).decode('utf-8')
+                desc_encoded = base64GZEncode(desc_read.encode(file_encoding), 1).decode('utf-8')
+                meta_encoded = base64GZEncode(meta_read.encode(file_encoding), 1).decode('utf-8')
+                thumb_encoded = base64GZEncode(thumb_read.encode(file_encoding), 1).decode('utf-8')
 
                 output_json = json.loads('{"data":{},"binaryData":{}}')
                 output_json["binaryData"]["CourseDescription"] = desc_encoded
@@ -135,7 +140,7 @@ def pack_course_file(course_directory, course_name=None, output_file=None, cours
                 output_string = json.dumps(output_json, separators=(',', ':'))
  
                 # Write to final gz format
-                output_gz = gzip.compress(output_string.encode('utf-16'), 1)
+                output_gz = gzip.compress(output_string.encode(file_encoding), 1)
 
                 with (output_path).open('wb') as f:
                     f.write(output_gz)
@@ -193,19 +198,26 @@ def waypoint_dist(p1, p2):
     dz = p1["z"] - p2["z"]
     return math.sqrt(dx**2 + dz**2)
 
-def get_hole_information(course_json):
+def get_hole_information(course_json, course_version):
     pars = []
     pin_counts = []
     tees = [[],[],[],[],[]]
 
-    for h in course_json["holes"]:
+    if course_version not in tgc_definitions.version_tags:
+        return
+
+    hole_tag = tgc_definitions.version_tags[course_version]['holes']
+    pin_tag = tgc_definitions.version_tags[course_version]['pins']
+    tee_tag = tgc_definitions.version_tags[course_version]['tees']
+
+    for h in course_json[hole_tag]:
         # Par is same for all tees
         par = h["creatorDefinedPar"]
         if par <= 0: # Check if user specified par
             par = h["par"]
         pars.append(par)
 
-        pin_counts.append(len(h["pinPositions"]))
+        pin_counts.append(len(h[pin_tag]))
 
         # Get common yardage for all tees
         waypoints = h["waypoints"][1:] # Every point but the first point
@@ -215,9 +227,12 @@ def get_hole_information(course_json):
 
         # Get specific yardage for all tees, record total yardage for every possible tee
         for i in range(0, 5):
-            if i < len(h["teePositions"]):
+            if i < len(h[tee_tag]):
+                tp = h[tee_tag][i]
+                if course_version == 25:
+                    tp = tp["position"]
                 # Convert to yards, from meters
-                total_dist = common_distance + waypoint_dist(h["teePositions"][i], waypoints[0])
+                total_dist = common_distance + waypoint_dist(tp, waypoints[0])
                 tees[i].append(1.09*total_dist)
             else:
                 tees[i].append(None)
@@ -225,96 +240,165 @@ def get_hole_information(course_json):
     return pars, pin_counts, tees
 
 
-def strip_terrain(course_json, output_file):
+def strip_terrain(course_json, output_file, course_version):
+    if course_version not in tgc_definitions.version_tags:
+        return
+
+    if course_version == 25:
+        layer_json = course_json
+    elif course_version == 23:
+        layer_json = course_json["userLayers2"]
+    else:
+        layer_json = course_json["userLayers"]
+
     # Copy existing terrain and write to disk
+
     output_data = {}
-    output_data['terrainHeight'] = course_json["userLayers"]["terrainHeight"]
-    output_data['height'] = course_json["userLayers"]["height"]
+    output_data['terrainHeight'] = layer_json["terrainHeight"]
+    output_data['height'] = layer_json["height"]
 
     print("Saving Terrain as " + output_file)
     np.save(output_file, output_data)
 
     # Clear existing terrain
-    course_json["userLayers"]["terrainHeight"] = []
-    course_json["userLayers"]["height"] = []
+    layer_json["terrainHeight"] = []
+    layer_json["height"] = []
 
     return course_json
 
-def insert_terrain(course_json, input_file):
+def insert_terrain(course_json, input_file, course_version):
+    if course_version not in tgc_definitions.version_tags:
+        return
+
+    if course_version == 25:
+        layer_json = course_json
+    elif course_version == 23:
+        layer_json = course_json["userLayers2"]
+    else:
+        layer_json = course_json["userLayers"]
+
     print("Loading terrain from: " + input_file)
     read_dictionary = np.load(input_file, allow_pickle=True).item()
 
     # Copy existing terrain and write to disk
-    course_json["userLayers"]["terrainHeight"] = read_dictionary["terrainHeight"]
-    course_json["userLayers"]["height"] = read_dictionary["height"]
+    layer_json["terrainHeight"] = read_dictionary["terrainHeight"]
+    layer_json["height"] = read_dictionary["height"]
 
     return course_json
 
-def strip_holes(course_json, output_file):
+def strip_holes(course_json, output_file, course_version):
+    if course_version not in tgc_definitions.version_tags:
+        return
+
+    hole_tag = tgc_definitions.version_tags[course_version]['holes']
+
     # Copy existing holes and write to disk
     output_data = {}
-    output_data['holes'] = course_json['holes']
+    output_data['holes'] = course_json[hole_tag]
 
     print("Saving Holes as " + output_file)
     np.save(output_file, output_data)
 
     # Clear existing holes
-    course_json['holes'] = []
+    course_json[hole_tag] = []
 
     return course_json
 
-def insert_holes(course_json, input_file):
+def insert_holes(course_json, input_file, course_version):
+    if course_version not in tgc_definitions.version_tags:
+        return
+
+    hole_tag = tgc_definitions.version_tags[course_version]['holes']
+
     print("Loading holes from: " + input_file)
     read_dictionary = np.load(input_file, allow_pickle=True).item()
 
     # Replace our holes from those in the file
-    course_json['holes'] = read_dictionary['holes']
+    course_json[hole_tag] = read_dictionary['holes']
 
     return course_json
 
 # Shift terrain and features are separate in case they need to be lined up with each other
-def shift_terrain(course_json, easting_shift, northing_shift):
-    for i in course_json["userLayers"]["height"]:
+def shift_terrain(course_json, easting_shift, northing_shift, course_version):
+    if course_version not in tgc_definitions.version_tags:
+        return
+
+    if course_version == 25:
+        layer_json = course_json
+    elif course_version == 23:
+        layer_json = course_json["userLayers2"]
+    else:
+        layer_json = course_json["userLayers"]
+
+    for i in layer_json["height"]:
         i['position']['x'] += easting_shift
         i['position']['z'] += northing_shift
 
-    for i in course_json["userLayers"]["terrainHeight"]:
+    for i in layer_json["terrainHeight"]:
         i['position']['x'] += easting_shift
         i['position']['z'] += northing_shift
 
     return course_json
 
-def shift_features(course_json, easting_shift, northing_shift):
+def shift_features(course_json, easting_shift, northing_shift, course_version):
+    if course_version not in tgc_definitions.version_tags:
+        return
+
+    dim2 = 'y'
+    if course_version == 25:
+        layer_json = course_json
+        dim2 = 'z'
+    elif course_version == 23:
+        layer_json = course_json["userLayers2"]
+    else:
+        layer_json = course_json["userLayers"]
+    
+    hole_tag = tgc_definitions.version_tags[course_version]['holes']
+    tee_tag = tgc_definitions.version_tags[course_version]['tees']
+    crowd_tag = tgc_definitions.version_tags[course_version]['crowd']    
+    spline_tag = tgc_definitions.version_tags[course_version]['splines']
+    surface_tag = tgc_definitions.version_tags[course_version]['surfaces']
+    oob_tag = tgc_definitions.version_tags[course_version]['oob']
+    obj_tag = tgc_definitions.version_tags[course_version]['objects']
+
     # Shift splines
-    for i in course_json["surfaceSplines"]:
+    for i in course_json[spline_tag]:
         for wp in i["waypoints"]:
             wp["pointOne"]["x"] += easting_shift
             wp["pointTwo"]["x"] += easting_shift
             wp["waypoint"]["x"] += easting_shift
-            wp["pointOne"]["y"] += northing_shift
-            wp["pointTwo"]["y"] += northing_shift
-            wp["waypoint"]["y"] += northing_shift
+            wp["pointOne"][dim2] += northing_shift
+            wp["pointTwo"][dim2] += northing_shift
+            wp["waypoint"][dim2] += northing_shift
 
     # Shift Holes
-    for h in course_json["holes"]:
+    for h in course_json[hole_tag]:
         for w in h["waypoints"]:
             w["x"] += easting_shift
             w["z"] += northing_shift
-        for t in h["teePositions"]:
-            t["x"] += easting_shift
-            t["z"] += northing_shift
+        for t in h[tee_tag]:
+            tp = t
+            if course_version == 25:
+                tp = tp["position"]
+            tp["x"] += easting_shift
+            tp["z"] += northing_shift
         # Pin positions are in relative coordinates and don't need shifted
 
     # Shift Brushes
-    for b in itertools.chain(course_json["userLayers"]["surfaces"],
-                             course_json["userLayers"]["water"],
-                             course_json["userLayers"]["outOfBounds"],
-                             course_json["userLayers"]["crowdLocations"]):
+    oob_json = layer_json[oob_tag]
+    crowd_json = layer_json[crowd_tag]
+    if course_version == 25:
+        oob_json = oob_json["brushes"]
+        crowd_json = crowd_json["brushes"]
+    for b in itertools.chain(layer_json[surface_tag],
+                             layer_json["water"],
+                             oob_json,
+                             crowd_json):
         b['position']['x'] += easting_shift
         b['position']['z'] += northing_shift
 
     # Shift Objects
-    for o in course_json["placedObjects2"]:
+    for o in course_json[obj_tag]:
         for i in o["Value"]["items"]:
             i['position']['x'] += easting_shift
             i['position']['z'] += northing_shift
@@ -325,9 +409,9 @@ def shift_features(course_json, easting_shift, northing_shift):
 
     return course_json
 
-def shift_course(course_json, easting_shift, northing_shift):
-    course_json = shift_terrain(course_json, easting_shift, northing_shift)
-    return shift_features(course_json, easting_shift, northing_shift)
+def shift_course(course_json, easting_shift, northing_shift, course_version):
+    course_json = shift_terrain(course_json, easting_shift, northing_shift, course_version)
+    return shift_features(course_json, easting_shift, northing_shift, course_version)
 
 # Helper function to rotate coordinates on many different element types
 def rotateCoord(elem, x_key='x', y_key='y', c=1.0, s=0.0):
@@ -338,7 +422,28 @@ def rotateCoord(elem, x_key='x', y_key='y', c=1.0, s=0.0):
 
 # Rotation angle is positive around the y-DOWN axis
 # Positive values will rotate the course clockwise
-def rotate_course(course_json, rotation_angle_radians):
+def rotate_course(course_json, rotation_angle_radians, course_version):
+    if course_version not in tgc_definitions.version_tags:
+        return
+
+    dim2 = 'y'
+    if course_version == 25:
+        layer_json = course_json
+        dim2 = 'z'
+    elif course_version == 23:
+        layer_json = course_json["userLayers2"]
+    else:
+        layer_json = course_json["userLayers"]
+    
+    hole_tag = tgc_definitions.version_tags[course_version]['holes']
+    tee_tag = tgc_definitions.version_tags[course_version]['tees']
+    pin_tag = tgc_definitions.version_tags[course_version]['pins']
+    crowd_tag = tgc_definitions.version_tags[course_version]['crowd']    
+    spline_tag = tgc_definitions.version_tags[course_version]['splines']
+    surface_tag = tgc_definitions.version_tags[course_version]['surfaces']
+    oob_tag = tgc_definitions.version_tags[course_version]['oob']
+    obj_tag = tgc_definitions.version_tags[course_version]['objects']
+
     # Elements that have rotation values are stored in degrees
     rotation_angle_degrees = 180.0 * rotation_angle_radians / math.pi
 
@@ -347,34 +452,48 @@ def rotate_course(course_json, rotation_angle_radians):
     s = math.sin(-rotation_angle_radians)
 
     # Rotate Brushes
-    for b in itertools.chain(course_json["userLayers"]["height"],
-                             course_json["userLayers"]["terrainHeight"],
-                             course_json["userLayers"]["surfaces"],
-                             course_json["userLayers"]["water"],
-                             course_json["userLayers"]["outOfBounds"],
-                             course_json["userLayers"]["crowdLocations"]):
-        rotateCoord(b['position'], 'x', 'z', c, s)
-        b['rotation']['y'] += rotation_angle_degrees
+    oob_json = layer_json[oob_tag]
+    crowd_json = layer_json[crowd_tag]
+    if course_version == 25:
+        oob_json = oob_json["brushes"]
+        crowd_json = crowd_json["brushes"]
+    for b in itertools.chain(layer_json["height"],
+                             layer_json["terrainHeight"],
+                             layer_json[surface_tag],
+                             layer_json["water"],
+                             oob_json,
+                             crowd_json):
+        try:
+            rotateCoord(b['position'], 'x', 'z', c, s)
+            b['rotation']['y'] += rotation_angle_degrees
+        except:
+            print(json.dumps(b))
 
     # Rotate splines
-    for i in course_json["surfaceSplines"]:
+    for i in course_json[spline_tag]:
         for wp in i["waypoints"]:
-            rotateCoord(wp["pointOne"], 'x', 'y', c, s)
-            rotateCoord(wp["pointTwo"], 'x', 'y', c, s)
-            rotateCoord(wp["waypoint"], 'x', 'y', c, s)
+            rotateCoord(wp["pointOne"], 'x', dim2, c, s)
+            rotateCoord(wp["pointTwo"], 'x', dim2, c, s)
+            rotateCoord(wp["waypoint"], 'x', dim2, c, s)
 
     # Rotate Holes
-    for h in course_json["holes"]:
+    for h in course_json[hole_tag]:
         for w in h["waypoints"]:
             rotateCoord(w, 'x', 'z', c, s)
-        for t in h["teePositions"]:
-            rotateCoord(t, 'x', 'z', c, s)
-        for p in h["pinPositions"]:
+        for t in h[tee_tag]:
+            tp = t
+            if course_version == 25:
+                tp = tp["position"]
+            rotateCoord(tp, 'x', 'z', c, s)
+        for p in h[pin_tag]:
             # Todo not 100% sure that this is correct
-            rotateCoord(p, 'x', 'y', c, s)
+            pp = p
+            if course_version == 25:
+                pp = p["position"]
+            rotateCoord(pp, 'x', 'y', c, s)
 
     # Rotate Objects
-    for o in course_json["placedObjects2"]:
+    for o in course_json[obj_tag]:
         for i in o["Value"]["items"]:
             rotateCoord(i["position"], 'x', 'z', c, s)
             i['rotation']['y'] += rotation_angle_degrees
@@ -385,23 +504,33 @@ def rotate_course(course_json, rotation_angle_radians):
 
     return course_json
 
-def getCoursePoints(course_json):
+def getCoursePoints(course_json, course_version):
+    if course_version not in tgc_definitions.version_tags:
+        return
+
+    if course_version == 25:
+        layer_json = course_json
+    elif course_version == 23:
+        layer_json = course_json["userLayers2"]
+    else:
+        layer_json = course_json["userLayers"]
+
     cv2_pts = []
 
-    for i in course_json["userLayers"]["height"]:
+    for i in layer_json["height"]:
         cv2_pts.append([i["position"]["x"], i["position"]["z"]])
 
-    for i in course_json["userLayers"]["terrainHeight"]:
+    for i in layer_json["terrainHeight"]:
         cv2_pts.append([i["position"]["x"], i["position"]["z"]])
 
     return cv2_pts
 
-def getBoundingBox(course_json):
-    cv2_pts = getCoursePoints(course_json)
+def getBoundingBox(course_json, course_version):
+    cv2_pts = getCoursePoints(course_json, course_version)
     return cv2.boundingRect(np.array(cv2_pts).astype(np.int32))
 
-def getMinBoundingBox(course_json):
-    cv2_pts = getCoursePoints(course_json)
+def getMinBoundingBox(course_json, course_version):
+    cv2_pts = getCoursePoints(course_json, course_version)
     return cv2.minAreaRect(np.array(cv2_pts).astype(np.int32))
 
 def setValues(x, y, ll, ul, ur, lr):
@@ -432,7 +561,17 @@ def setValues(x, y, ll, ul, ur, lr):
 # Assuming terrain always goes further than "other stuff"
 # Also assumes course is roughly centered at 0,0
 # Returns ll, ul, ur, lr
-def get_terrain_extremes(course_json):
+def get_terrain_extremes(course_json, course_version):
+    if course_version not in tgc_definitions.version_tags:
+        return
+
+    if course_version == 25:
+        layer_json = course_json
+    elif course_version == 23:
+        layer_json = course_json["userLayers2"]
+    else:
+        layer_json = course_json["userLayers"]
+
     # Initialize to higher/lower values than possible so the first points
     # X, Z, radius_squared to point
     ll = (0.0, 0.0, 0.0)
@@ -440,19 +579,19 @@ def get_terrain_extremes(course_json):
     ur = (0.0, 0.0, 0.0)
     lr = (0.0, 0.0, 0.0)
 
-    for i in course_json["userLayers"]["height"]:
+    for i in layer_json["height"]:
         ll, ul, ur, lr = setValues(i["position"]["x"], i["position"]["z"], ll, ul, ur, lr)
 
-    for i in course_json["userLayers"]["terrainHeight"]:
+    for i in layer_json["terrainHeight"]:
         ll, ul, ur, lr = setValues(i["position"]["x"], i["position"]["z"], ll, ul, ur, lr)
 
     return (ll, ul, ur, lr)
 
 # Determines the four extremes and tries to shift and rotate the course to fit within 2000m
-def auto_position_course(course_json, printf=print):
+def auto_position_course(course_json, printf=print, course_version=-1):
     # TODO Corners is redundant with the boundingRect
-    extremes = get_terrain_extremes(course_json)
-    rect = getBoundingBox(course_json)
+    extremes = get_terrain_extremes(course_json, course_version)
+    rect = getBoundingBox(course_json, course_version)
 
     fits_on_map = False
 
@@ -483,25 +622,25 @@ def auto_position_course(course_json, printf=print):
 
         rotation = rotation_sum/float(len(extremes))
         printf("Rotating course by: " + str(rotation))
-        course_json = rotate_course(course_json, rotation)
+        course_json = rotate_course(course_json, rotation, course_version)
 
         # See if we needed to rotate the opposite direction
-        rect = getBoundingBox(course_json)
+        rect = getBoundingBox(course_json, course_version)
 
         if rect[2] > 2000.0 or rect[3] > 2000.0:
             printf("Trying opposite rotation: " + str(-rotation))
             # Undo our previous rotation and try the other direction
-            course_json = rotate_course(course_json, -2.0*rotation)
+            course_json = rotate_course(course_json, -2.0*rotation, course_version)
 
     # Now see if a translation can help get the full course on
-    rect = getBoundingBox(course_json)
+    rect = getBoundingBox(course_json, course_version)
 
     eastwest_shift = -rect[2] / 2 - rect[0]
     northsouth_shift = -rect[3] / 2 - rect[1]
 
     printf("Shift course by: " + str(eastwest_shift) + " x " + str(northsouth_shift))
 
-    return shift_course(course_json, eastwest_shift, northsouth_shift)
+    return shift_course(course_json, eastwest_shift, northsouth_shift, course_version)
 
 # This doesn't work perfectly, but it works for many courses
 def auto_merge_courses(course1_json, course2_json):
@@ -604,15 +743,27 @@ def merge_courses(course1_json, course2_json):
     return course1_json
 
 
-def elevate_terrain(course_json, elevate_shift, buffer_height=10.0, clip_lowest_value=-2.0, printf=print):
+def elevate_terrain(course_json, elevate_shift, buffer_height=10.0, clip_lowest_value=-2.0, printf=print, course_version=-1):
+    if course_version not in tgc_definitions.version_tags:
+        print("invalid version")
+        print(course_version)
+        return None
+
+    if course_version == 25:
+        layer_json = course_json
+    elif course_version == 23:
+        layer_json = course_json["userLayers2"]
+    else:
+        layer_json = course_json["userLayers"]
+            
     # Automatic terrain shift
     if elevate_shift == 0.0 or elevate_shift == None:
         elevations = []
-        for i in course_json["userLayers"]["height"]:
+        for i in layer_json["height"]:
             elevations.append(i['value'])
 
         remaining_terrain = json.loads('[]')
-        for i in course_json["userLayers"]["terrainHeight"]:
+        for i in layer_json["terrainHeight"]:
             elevations.append(i['value'])
 
         elevations = np.array(elevations)
@@ -643,45 +794,61 @@ def elevate_terrain(course_json, elevate_shift, buffer_height=10.0, clip_lowest_
     printf("Shifting elevation by: " + str(elevate_shift))
 
     remaining_height = json.loads('[]')
-    for i in course_json["userLayers"]["height"]:
+    for i in layer_json["height"]:
         value = i['value']
         if value + elevate_shift >= clip_lowest_value:
             i['value'] += elevate_shift
             remaining_height.append(i)
-    course_json["userLayers"]["height"] = remaining_height
+    layer_json["height"] = remaining_height
 
     remaining_terrain = json.loads('[]')
-    for i in course_json["userLayers"]["terrainHeight"]:
+    for i in layer_json["terrainHeight"]:
         value = i['value']
         if value + elevate_shift >= clip_lowest_value:
             i['value'] += elevate_shift
             remaining_terrain.append(i)
-    course_json["userLayers"]["terrainHeight"] = remaining_terrain
+    layer_json["terrainHeight"] = remaining_terrain
 
     return course_json
 
 # Maximum course size is 2000 meters by 2000 meters.
 # This crops if anything is further than max from the origin
 # 2000.0 / 2 is 1000.0 meters
-def crop_course(course_json, max_easting=1000.0, max_northing=1000.0):
+def crop_course(course_json, max_easting=1000.0, max_northing=1000.0, course_version=-1):
+    if course_version not in tgc_definitions.version_tags:
+        print("invalid version")
+        print(course_version)
+        return None
+
+    if course_version == 25:
+        layer_json = course_json
+    elif course_version == 23:
+        layer_json = course_json["userLayers2"]
+    else:
+        layer_json = course_json["userLayers"]
+         
+    spline_tag = tgc_definitions.version_tags[course_version]['splines']
+    hole_tag = tgc_definitions.version_tags[course_version]['holes']
+    tee_tag = tgc_definitions.version_tags[course_version]['tees']
+
     # Filter elevation
     remaining_height = json.loads('[]')
-    for i in course_json["userLayers"]["height"]:
+    for i in layer_json["height"]:
         if abs(i["position"]["x"]) <= max_easting and \
            abs(i["position"]["z"]) <= max_northing:
             remaining_height.append(i)
-    course_json["userLayers"]["height"] = remaining_height
+    layer_json["height"] = remaining_height
 
     remaining_terrain = json.loads('[]')
-    for i in course_json["userLayers"]["terrainHeight"]:
+    for i in layer_json["terrainHeight"]:
         if abs(i["position"]["x"]) <= max_easting and \
            abs(i["position"]["z"]) <= max_northing:
             remaining_terrain.append(i)
-    course_json["userLayers"]["terrainHeight"] = remaining_terrain
+    layer_json["terrainHeight"] = remaining_terrain
 
     # Filter splines
     remaining_splines = json.loads('[]')
-    for i in course_json["surfaceSplines"]:
+    for i in course_json[spline_tag]:
         keep_spline = True
         for wp in i["waypoints"]:
             if abs(wp["pointOne"]["x"]) <= max_easting and \
@@ -697,11 +864,11 @@ def crop_course(course_json, max_easting=1000.0, max_northing=1000.0):
 
         if keep_spline:
             remaining_splines.append(i)
-    course_json["surfaceSplines"] = remaining_splines
+    course_json[spline_tag] = remaining_splines
 
     # Filter Holes
     remaining_holes = json.loads('[]')
-    for h in course_json["holes"]:
+    for h in course_json[hole_tag]:
         keep_hole = True
         for w in h["waypoints"]:
             if abs(w["x"]) <= max_easting and \
@@ -712,7 +879,7 @@ def crop_course(course_json, max_easting=1000.0, max_northing=1000.0):
                 break
  
         if keep_hole:
-            for t in h["teePositions"]:
+            for t in h[tee_tag]:
                 if abs(t["x"]) <= max_easting and \
                    abs(t["z"]) <= max_northing:
                     continue
@@ -722,6 +889,6 @@ def crop_course(course_json, max_easting=1000.0, max_northing=1000.0):
 
         if keep_hole:
             remaining_holes.append(h)
-    course_json["holes"] = remaining_holes
+    course_json[hole_tag] = remaining_holes
 
     return course_json

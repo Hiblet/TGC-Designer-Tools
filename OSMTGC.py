@@ -24,10 +24,14 @@ def shapeCenter(nds):
     bb = nodeBoundingBox(nds)
     return ((bb[0] + bb[2])/2.0, (bb[1]+bb[3])/2.0)
 
-def getwaypoint(easting, vertical, northing):
-    output = json.loads('{"pointOne": {"x": 0.0,"y": 0.0},"pointTwo": {"x": 0.0,"y": 0.0},"waypoint": {"x": 0.0,"y": 0.0} }')
+def getwaypoint(easting, vertical, northing, course_version):
+    dim2 = "y"
+    if course_version == 25:
+        dim2 = "z"
+
+    output = json.loads('{"pointOne": {"x": 0.0,"'+dim2+'": 0.0},"pointTwo": {"x": 0.0,"'+dim2+'": 0.0},"waypoint": {"x": 0.0,"'+dim2+'": 0.0} }')
     output["waypoint"]["x"] = easting
-    output["waypoint"]["y"] = northing
+    output["waypoint"][dim2] = northing
     return output
 
 def getwaypoint3D(x, y, z):
@@ -37,10 +41,18 @@ def getwaypoint3D(x, y, z):
     wp["z"] = z
     return wp
 
-def getTangentAngle(previous_point, next_point):
-    return math.atan2(float(next_point["y"])-float(previous_point["y"]), float(next_point["x"])-float(previous_point["x"]))
+def getTangentAngle(previous_point, next_point, course_version):
+    dim2 = "y"
+    if course_version == 25:
+        dim2 = "z"
 
-def completeSpline(points, spline_json, handleLength=1.0, is_clockwise=True, tightSplines=True):
+    return math.atan2(float(next_point[dim2])-float(previous_point[dim2]), float(next_point["x"])-float(previous_point["x"]))
+
+def completeSpline(points, spline_json, handleLength=1.0, is_clockwise=True, tightSplines=True, course_version=-1):
+    dim2 = "y"
+    if course_version == 25:
+        dim2 = "z"
+            
     number_points = len(spline_json["waypoints"])
     for i in range(0, number_points):
         prev_index = i - 1 # Works for negative
@@ -54,7 +66,7 @@ def completeSpline(points, spline_json, handleLength=1.0, is_clockwise=True, tig
 
         # Just guessing what these points are and if they are important
         # Set point one and point two to be on the line between the previous and next point, but centered on this point
-        angle = getTangentAngle(p, n)
+        angle = getTangentAngle(p, n, course_version)
         if tightSplines:
             # Pull the spline handles perpendicular and inside the shape in order to accurately
             # represent the shapes downloaded online.  Don't want a lot of expansion or smoothing
@@ -74,22 +86,30 @@ def completeSpline(points, spline_json, handleLength=1.0, is_clockwise=True, tig
 
         # TODO Use angle to center to guarantee these point inwards?  I see them pointing out sometimes
         spline_json["waypoints"][i]["pointOne"]["x"] = t["x"] + handleLength * math.cos(angle_one)
-        spline_json["waypoints"][i]["pointOne"]["y"] = t["y"] + handleLength * math.sin(angle_one)
+        spline_json["waypoints"][i]["pointOne"][dim2] = t[dim2] + handleLength * math.sin(angle_one)
         spline_json["waypoints"][i]["pointTwo"]["x"] = t["x"] + handleLength * math.cos(angle_two)
-        spline_json["waypoints"][i]["pointTwo"]["y"] = t["y"] + handleLength * math.sin(angle_two)
+        spline_json["waypoints"][i]["pointTwo"][dim2] = t[dim2] + handleLength * math.sin(angle_two)
 
-def splineIsClockWise(spline_json):
+def splineIsClockWise(spline_json, course_version=-1):
+    dim2 = "y"
+    if course_version == 25:
+        dim2 = "z"
+
     # https://stackoverflow.com/questions/1165647/how-to-determine-if-a-list-of-polygon-points-are-in-clockwise-order
     points = spline_json["waypoints"]
     edge_sum = 0.0
     for i in range(0, len(points)):
-        edge_sum += (points[i]["waypoint"]["x"]-points[i-1]["waypoint"]["x"])*(points[i]["waypoint"]["y"]+points[i-1]["waypoint"]["y"])
+        edge_sum += (points[i]["waypoint"]["x"]-points[i-1]["waypoint"]["x"])*(points[i]["waypoint"][dim2]+points[i-1]["waypoint"][dim2])
 
     return edge_sum >= 0.0
 
-def shrinkSplineNormals(spline_json, shrink_distance=1.0, is_clockwise=True):
+def shrinkSplineNormals(spline_json, shrink_distance=1.0, is_clockwise=True, course_version=-1):
     if not shrink_distance:
         return spline_json
+
+    dim2 = "y"
+    if course_version == 25:
+        dim2 = "z"
 
     number_points = len(spline_json["waypoints"])
     for i in range(0, number_points):
@@ -101,7 +121,7 @@ def shrinkSplineNormals(spline_json, shrink_distance=1.0, is_clockwise=True):
         p = spline_json["waypoints"][prev_index]["waypoint"]
         t = spline_json["waypoints"][i]["waypoint"]
         n = spline_json["waypoints"][next_index]["waypoint"]
-        tangent_angle = getTangentAngle(p, n)
+        tangent_angle = getTangentAngle(p, n, course_version)
         # Move the spline points along the normal to the inside of the shape
         # Since the game expands splines by a fixed amount, we need to shrink the shape by a set amount
         normal_angle = tangent_angle - math.pi/2.0
@@ -112,11 +132,13 @@ def shrinkSplineNormals(spline_json, shrink_distance=1.0, is_clockwise=True):
 
         # Now shift the spline point by shrink_distance in the direction of normal_angle
         t["x"] += math.cos(normal_angle)*shrink_distance
-        t["y"] += math.sin(normal_angle)*shrink_distance
+        t[dim2] += math.sin(normal_angle)*shrink_distance
 
     return spline_json
 
-def newSpline(points, pathWidth=0.01, shrink_distance=None, handleLength=0.5, tightSplines=True, secondarySurface="", secondaryWidth=0.0, spline_json=None):
+def newSpline(points, pathWidth=0.01, shrink_distance=None, handleLength=0.5, tightSplines=True, 
+    secondarySurface="", secondaryWidth=0.0, spline_json=None, course_version=-1):
+    
     spline = json.loads('{"surface": 1, \
             "secondarySurface": 11, \
             "secondaryWidth": -1.0, \
@@ -138,87 +160,91 @@ def newSpline(points, pathWidth=0.01, shrink_distance=None, handleLength=0.5, ti
     except:
         print("Invalid Spline configuration: " + str(spline_json))
 
+    dim2 = "y"
+    if course_version == 25:
+        dim2 = "z"
+
     spline["width"] = pathWidth
     spline["secondarySurface"] = tgc_definitions.featuresToSurfaces.get(secondarySurface, 11) 
     spline["secondaryWidth"] = secondaryWidth
 
     for p in points:
-        spline["waypoints"].append(getwaypoint(*p))
+        spline["waypoints"].append(getwaypoint(*p, course_version))
 
     # Determine direction of spline
-    is_clockwise = splineIsClockWise(spline)
+    is_clockwise = splineIsClockWise(spline, course_version)
 
     # Reduce spline normal distance (move points inwards) by half of width
     # This compensates for the game treating all splines like filled cartpaths
     if shrink_distance is None:
         shrink_distance = pathWidth/2.0
-    spline = shrinkSplineNormals(spline, shrink_distance=shrink_distance, is_clockwise=is_clockwise)
+    spline = shrinkSplineNormals(spline, shrink_distance=shrink_distance, is_clockwise=is_clockwise, course_version=course_version)
 
     # Now that spline is shrunk, set the handles according to the properties we want
-    completeSpline(points, spline, handleLength=handleLength, is_clockwise=is_clockwise, tightSplines=tightSplines)
+    completeSpline(points, spline, handleLength=handleLength, is_clockwise=is_clockwise, tightSplines=tightSplines, course_version=course_version)
 
     return spline
 
-def newBunker(points):
+def newBunker(points, course_version):
     global spline_configuration
     spline_json = None
     if spline_configuration is not None:
         spline_json = spline_configuration.get("bunker", None)
     # Very tight shaped to make complex curves
-    bunker = newSpline(points, pathWidth=0.01, handleLength=1.0, tightSplines=True, secondarySurface="heavyrough", secondaryWidth=2.5, spline_json=spline_json)
+    bunker = newSpline(points, pathWidth=0.01, handleLength=1.0, tightSplines=True, secondarySurface="heavyrough", secondaryWidth=2.5, spline_json=spline_json, course_version=course_version)
     bunker["surface"] = tgc_definitions.featuresToSurfaces["bunker"]
     return bunker
 
-def newGreen(points):
+def newGreen(points, course_version):
     global spline_configuration
     spline_json = None
     if spline_configuration is not None:
         spline_json = spline_configuration.get("green", None)
-    green = newSpline(points, pathWidth = 1.7, handleLength=0.2, tightSplines=True, secondarySurface="heavyrough", secondaryWidth=2.5, spline_json=spline_json)
+    green = newSpline(points, pathWidth = 1.7, handleLength=0.2, tightSplines=True, secondarySurface="heavyrough", secondaryWidth=2.5, spline_json=spline_json, course_version=course_version)
     green["surface"] = tgc_definitions.featuresToSurfaces["green"]
     return green
 
-def newTeeBox(points):
+def newTeeBox(points, course_version):
     global spline_configuration
     spline_json = None
     if spline_configuration is not None:
         spline_json = spline_configuration.get("teebox", None)
-    teebox = newSpline(points, pathWidth = 1.7, handleLength=0.2, tightSplines=True, secondarySurface="heavyrough", secondaryWidth=2.5, spline_json=spline_json)
+    teebox = newSpline(points, pathWidth = 1.7, handleLength=0.2, tightSplines=True, secondarySurface="heavyrough", secondaryWidth=2.5, spline_json=spline_json, course_version=course_version)
     teebox["surface"] = tgc_definitions.featuresToSurfaces["green"]
     return teebox
 
-def newFairway(points):
+def newFairway(points, course_version):
     global spline_configuration
     spline_json = None
     if spline_configuration is not None:
         spline_json = spline_configuration.get("fairway", None)
-    fw = newSpline(points, pathWidth = 3.0, handleLength=3.0, tightSplines=False, secondarySurface="rough", secondaryWidth=5.0, spline_json=spline_json)
+    fw = newSpline(points, pathWidth = 3.0, handleLength=3.0, tightSplines=False, secondarySurface="rough", secondaryWidth=5.0, spline_json=spline_json, course_version=course_version)
     fw["surface"] = tgc_definitions.featuresToSurfaces["fairway"]
     return fw
 
-def newRough(points):
+def newRough(points, course_version):
     global spline_configuration
     spline_json = None
     if spline_configuration is not None:
         spline_json = spline_configuration.get("rough", None)
-    rh = newSpline(points, pathWidth = 1.7, handleLength=3.0, tightSplines=False, secondarySurface="", secondaryWidth=0.0, spline_json=spline_json)
+    rh = newSpline(points, pathWidth = 1.7, handleLength=3.0, tightSplines=False, secondarySurface="", secondaryWidth=0.0, spline_json=spline_json, course_version=course_version)
     # Game outputs secondary as 1
     # Remove with 0 width
     rh["surface"] = tgc_definitions.featuresToSurfaces["rough"]
     return rh
 
-def newHeavyRough(points):
+def newHeavyRough(points, course_version):
     global spline_configuration
     spline_json = None
     if spline_configuration is not None:
         spline_json = spline_configuration.get("heavyrough", None)
-    hr = newSpline(points, pathWidth = 1.7, handleLength=3.0, tightSplines=False, secondarySurface="", secondaryWidth=0.0, spline_json=spline_json)
+    hr = newSpline(points, pathWidth = 1.7, handleLength=3.0, tightSplines=False, secondarySurface="", secondaryWidth=0.0, spline_json=spline_json, course_version=course_version)
     # Game outputs secondary as 1
     # Remove with 0 width
     hr["surface"] = tgc_definitions.featuresToSurfaces["heavyrough"]
     return hr
 
-def newCartPath(points, area=False):
+def newCartPath(points, area=False, course_version=-1):
     global spline_configuration
     spline_json = None
     if spline_configuration is not None:
@@ -227,10 +253,13 @@ def newCartPath(points, area=False):
     shrink_distance = 0.0
     if area:
         shrink_distance = None # Automatic shrink_distance
-    cp = newSpline(points, pathWidth=pathWidth, shrink_distance=shrink_distance, handleLength=4.0, tightSplines=False, secondarySurface="", secondaryWidth=0.0, spline_json=spline_json) # Smooth a lot
+    cp = newSpline(points, pathWidth=pathWidth, shrink_distance=shrink_distance, handleLength=4.0, tightSplines=False, secondarySurface="", secondaryWidth=0.0, spline_json=spline_json, course_version=course_version) # Smooth a lot
     # Cartpath is surface 10 (this is the one with Cartpath logo in Designer)
     # Remove secondary with 0 width
     cp["surface"] = tgc_definitions.featuresToSurfaces["cartpath"] # Cartpath, Surface #3
+    if course_version == 25:
+        cp["surface"] = tgc_definitions.featuresToSurfaces["surface1"] 
+        
     # 0 is 'not closed' and 3 is 'closed and filled' maybe a bitmask?
     if area:
         cp["state"] = 3
@@ -243,7 +272,7 @@ def newCartPath(points, area=False):
 
     return cp
 
-def newWalkingPath(points, area=False):
+def newWalkingPath(points, area=False, course_version=-1):
     global spline_configuration
     spline_json = None
     if spline_configuration is not None:
@@ -253,7 +282,7 @@ def newWalkingPath(points, area=False):
     shrink_distance = 0.0
     if area:
         shrink_distance = None # Automatic shrink_distance
-    wp = newSpline(points, pathWidth=pathWidth, shrink_distance=shrink_distance, handleLength=2.0, tightSplines=False, secondarySurface="rough", secondaryWidth=0.0, spline_json=spline_json)
+    wp = newSpline(points, pathWidth=pathWidth, shrink_distance=shrink_distance, handleLength=2.0, tightSplines=False, secondarySurface="rough", secondaryWidth=0.0, spline_json=spline_json, course_version=course_version)
     # Make walking paths Surface #1 for visibility
     # User can switch to green/fairway/rough depending on taste
     # Remove secondary with 0 width
@@ -268,7 +297,7 @@ def newWalkingPath(points, area=False):
         wp["isFilled"] = False
     return wp
 
-def newWaterHazard(points, area=True):
+def newWaterHazard(points, area=True, course_version=-1):
     global spline_configuration
     spline_json = None
     if spline_configuration is not None:
@@ -277,12 +306,15 @@ def newWaterHazard(points, area=True):
     # Add spline and fill with black mulch
     if area:
         # No width, only very detailed fill shape
-        wh = newSpline(points, pathWidth = 0.01, handleLength=0.2, tightSplines=True, secondarySurface="", secondaryWidth=0.0, spline_json=spline_json)
+        wh = newSpline(points, pathWidth = 0.01, handleLength=0.2, tightSplines=True, secondarySurface="", secondaryWidth=0.0, spline_json=spline_json, course_version=course_version)
     else:
         # Make smooth creek or waterway
-        wh = newSpline(points, pathWidth=2.0, shrink_distance=0.0, tightSplines=False, secondarySurface="", secondaryWidth=0.0, spline_json=None)
+        wh = newSpline(points, pathWidth=2.0, shrink_distance=0.0, tightSplines=False, secondarySurface="", secondaryWidth=0.0, spline_json=None, course_version=course_version)
     # Fill as mulch/surface #2 as a placeholder
     wh["surface"] = tgc_definitions.featuresToSurfaces["surface2"]
+    if course_version == 25:
+        wh["surface"] = tgc_definitions.featuresToSurfaces["surface3"]
+        
     if area:
         wh["state"] = 3
         wh["isClosed"] = True
@@ -293,7 +325,7 @@ def newWaterHazard(points, area=True):
         wh["isFilled"] = False
     return wh
 
-def newBuilding(points):
+def newBuilding(points, course_version):
     global spline_configuration
     spline_json = None
     if spline_configuration is not None:
@@ -301,12 +333,12 @@ def newBuilding(points):
     # Add placeholder for buildings
     # Add spline and fill with gravel
     # No width, only very detailed fill shape
-    b = newSpline(points, pathWidth = 0.01, handleLength=0.2, tightSplines=True, secondarySurface="", secondaryWidth=0.0, spline_json=spline_json)
+    b = newSpline(points, pathWidth = 0.01, handleLength=0.2, tightSplines=True, secondarySurface="", secondaryWidth=0.0, spline_json=spline_json, course_version=course_version)
     # Fill as a placeholder
     b["surface"] = tgc_definitions.featuresToSurfaces["surface1"]
     return b
 
-def newForest(points):
+def newForest(points, course_version):
     global spline_configuration
     spline_json = None
     if spline_configuration is not None:
@@ -314,7 +346,7 @@ def newForest(points):
     # Add placeholder spline for naturaL:wood in OSM
     # Add spline and fill with gravel
     # No width, only very detailed fill shape
-    f = newSpline(points, pathWidth = 0.01, handleLength=0.2, tightSplines=True, secondarySurface="", secondaryWidth=0.0, spline_json=spline_json)
+    f = newSpline(points, pathWidth = 0.01, handleLength=0.2, tightSplines=True, secondarySurface="", secondaryWidth=0.0, spline_json=spline_json, course_version=course_version)
     # Fill as a placeholder
     f["surface"] = tgc_definitions.featuresToSurfaces["surface1"]
     return f
@@ -330,8 +362,16 @@ def addHalfwayPoint(points):
 
     return (first, new_point, last)
 
-def newHole(userpar, points):
-    hole = json.loads('{"waypoints": [], "teePositions": [],"pinPositions": [{"x": 0.0,"y": 0.0,"z": 0.0}],"greenRadius": 0.0,"teeRadius": 0.0,"fairwayRadius": 0.0, \
+def newHole(userpar, points, course_version):
+    if course_version not in tgc_definitions.version_tags:
+        print("invalid version")
+        print(course_version)
+        return None
+
+    tee_tag = tgc_definitions.version_tags[course_version]['tees']
+    pin_tag = tgc_definitions.version_tags[course_version]['pins']
+
+    hole = json.loads('{"waypoints": [], "'+tee_tag+'": [], "'+pin_tag+'": [],"greenRadius": 0.0,"teeRadius": 0.0,"fairwayRadius": 0.0, \
             "fairwayStart": 0.0,"fairwayEnd": 0.0,"fairwayNoiseScale": -1.0,"roughRadius": 0.0,"heavyRoughRadius": 0.0,"hazardGreenCount": 0.0,"hazardFairwayCount": 0.0, \
             "hazardFairwayPeriod": -1.0,"teeHeight": -1.0, "greenSeed": 206208328, "fairwaySeed": 351286870,"teeTexture": -1, \
             "creatorDefinedPar": -1, "name": "","flagOffset": {"x": 0.0,"y": 0.0},"par": 4}')
@@ -348,7 +388,17 @@ def newHole(userpar, points):
     for p in points:
         hole["waypoints"].append(getwaypoint3D(p[0], 0.0, p[2]))
 
-    hole["teePositions"].append(getwaypoint3D(points[0][0], 0.0, points[0][2]))
+    if course_version == 25:
+        tee = {}
+        tee["position"] = getwaypoint3D(points[0][0], 0.0, points[0][2]) 
+        pin = {}
+        pin["position"] = getwaypoint3D(0.0, 0.0, 0.0)
+    else:
+        tee = getwaypoint3D(points[0][0], 0.0, points[0][2])
+        pin = getwaypoint3D(0.0, 0.0, 0.0)
+
+    hole[tee_tag].append(tee)
+    hole[pin_tag].append(pin)
 
     return hole
 
@@ -364,15 +414,31 @@ def getOSMData(bottom_lat, left_lon, top_lat, right_lon, printf=print):
         printf("OpenStreetMap servers are too busy right now.  Try running this tool later.")
         return None
 
-def clearFeatures(course_json):
+def clearFeatures(course_json, course_version):
+    if course_version not in tgc_definitions.version_tags:
+        print("invalid version")
+        print(course_version)
+        return None
+
+    hole_tag = tgc_definitions.version_tags[course_version]['holes']
+    spline_tag = tgc_definitions.version_tags[course_version]['splines']
+
     # Clear splines?  Make this optional
-    course_json["surfaceSplines"] = []
+    course_json[spline_tag] = []
     # Game will crash if more than 18 holes found, so always clear holes
-    course_json["holes"] = []
+    course_json[hole_tag] = []
     return course_json
 
-def addOSMToTGC(course_json, geopointcloud, osm_result, x_offset=0.0, y_offset=0.0, options_dict={}, spline_configuration_json=None, printf=print):
+def addOSMToTGC(course_json, geopointcloud, osm_result, x_offset=0.0, y_offset=0.0, options_dict={}, spline_configuration_json=None, printf=print, course_version=-1):
     global spline_configuration
+
+    if course_version not in tgc_definitions.version_tags:
+        print("invalid version")
+        print(course_version)
+        return None
+
+    hole_tag = tgc_definitions.version_tags[course_version]['holes']    
+    spline_tag = tgc_definitions.version_tags[course_version]['splines']
 
     # Ways represent features composed of many lat/long points (nodes)
     # We can convert these directly into the game's splines
@@ -385,7 +451,7 @@ def addOSMToTGC(course_json, geopointcloud, osm_result, x_offset=0.0, y_offset=0
     ul_tgc = geopointcloud.enuToTGC(*ul_enu, 0.0)
     lr_tgc = geopointcloud.enuToTGC(*lr_enu, 0.0)
 
-    course_json = clearFeatures(course_json)
+    course_json = clearFeatures(course_json, course_version)
 
     hole_dictionary = dict() # Holes must be ordered by hole_num.  Must keep track of return order just in case data doesn't have hole number
     num_ways = len(osm_result.ways)
@@ -435,26 +501,26 @@ def addOSMToTGC(course_json, geopointcloud, osm_result, x_offset=0.0, y_offset=0
 
         if golf_type is not None:
             if golf_type == "green" and options_dict.get('green', True):
-                course_json["surfaceSplines"].append(newGreen(nds))
+                course_json[spline_tag].append(newGreen(nds, course_version))
             elif golf_type == "bunker" and options_dict.get('bunker', True):
-                course_json["surfaceSplines"].append(newBunker(nds))
+                course_json[spline_tag].append(newBunker(nds, course_version))
             elif golf_type == "tee" and options_dict.get('teebox', True):
-                course_json["surfaceSplines"].append(newTeeBox(nds))
+                course_json[spline_tag].append(newTeeBox(nds, course_version))
             elif golf_type == "fairway" and options_dict.get('fairway', True):
-                course_json["surfaceSplines"].append(newFairway(nds))
+                course_json[spline_tag].append(newFairway(nds, course_version))
             elif golf_type == "driving_range" and options_dict.get('range', True):
                 # Add as fairway
-                course_json["surfaceSplines"].append(newFairway(nds))
+                course_json[spline_tag].append(newFairway(nds, course_version))
             elif golf_type == "rough" and options_dict.get('rough', True):
-                course_json["surfaceSplines"].append(newRough(nds))
+                course_json[spline_tag].append(newRough(nds, course_version))
             elif (golf_type == "water_hazard" or golf_type == "lateral_water_hazard") and options_dict.get('water', True):
-                course_json["surfaceSplines"].append(newWaterHazard(nds, area=True))
+                course_json[spline_tag].append(newWaterHazard(nds, area=True, course_version=course_version))
             elif golf_type == "cartpath" and options_dict.get('cartpath', True):
-                course_json["surfaceSplines"].append(newCartPath(nds, area=area))
+                course_json[spline_tag].append(newCartPath(nds, area=area, course_version=course_version))
             elif golf_type == "path" and options_dict.get('path', True):
-                course_json["surfaceSplines"].append(newWalkingPath(nds, area=area))
+                course_json[spline_tag].append(newWalkingPath(nds, area=area, course_version=course_version))
             elif golf_type == "clubhouse" and options_dict.get('building', True):
-                course_json["surfaceSplines"].append(newBuilding(nds))
+                course_json[spline_tag].append(newBuilding(nds, course_version))
             elif golf_type == "hole" and options_dict.get('hole', True):
                 # Only add holes for the course we're interested in
                 name_filter = options_dict.get('hole_name_filter', None)
@@ -473,7 +539,7 @@ def addOSMToTGC(course_json, geopointcloud, osm_result, x_offset=0.0, y_offset=0
                     printf("ERROR: There is an invalid character saved to OpenStreetMap for par or hole number: " + str(way.tags))
                     par = -1
                     hole_num = -1
-                hole = newHole(par, nds)
+                hole = newHole(par, nds, course_version)
                 if hole is not None:
                     if hole_num == 0:
                         hole_num = len(hole_dictionary) + 1
@@ -483,14 +549,14 @@ def addOSMToTGC(course_json, geopointcloud, osm_result, x_offset=0.0, y_offset=0
         elif waterway_type is not None:
             # Draw these as water hazards no matter what subtype they are
             if options_dict.get('water', True):
-                course_json["surfaceSplines"].append(newWaterHazard(nds, area=area))
+                course_json[spline_tag].append(newWaterHazard(nds, area=area, course_version=course_version))
         elif building_type is not None:
             # Draw these as buildings no matter what subtype they are
             if options_dict.get('building', True):
-                course_json["surfaceSplines"].append(newBuilding(nds))
+                course_json[spline_tag].append(newBuilding(nds, course_version))
         elif natural_type is not None:
             if natural_type == "wood" and options_dict.get('tree', True):
-                course_json["surfaceSplines"].append(newForest(nds))
+                course_json[spline_tag].append(newForest(nds, course_version))
         elif highway_type is not None and highway_type not in ["proposed", "construction"]:
             implicit_foot_access = {"motorway": "no",
                                     "motorway_link": "no",
@@ -500,11 +566,41 @@ def addOSMToTGC(course_json, geopointcloud, osm_result, x_offset=0.0, y_offset=0
             way_foot_access = foot_type if foot_type is not None else implicit_foot_access.get(highway_type, "yes")
 
             if golf_cart_type is not None and golf_cart_type != "no" and options_dict.get('cartpath', True):
-                course_json["surfaceSplines"].append(newCartPath(nds, area=area))
+                course_json[spline_tag].append(newCartPath(nds, area=area, course_version=course_version))
             elif way_foot_access != "no" and options_dict.get('path', True) and options_dict.get('all_osm_paths', True):
-                course_json["surfaceSplines"].append(newWalkingPath(nds, area=area))
+                course_json[spline_tag].append(newWalkingPath(nds, area=area, course_version=course_version))
         elif amenity_type == "parking" and golf_cart_type is not None and golf_cart_type != "no" and options_dict.get('cartpath', True):
-            course_json["surfaceSplines"].append(newCartPath(nds, area=True))
+            course_json[spline_tag].append(newCartPath(nds, area=True, course_version=course_version))
+
+    for n, rel in enumerate(osm_result.relations):
+        if time.time() > last_print_time + status_print_duration:
+            last_print_time = time.time()
+            printf(str(round(100.0*float(n) / num_rels, 2)) + "% through OpenStreetMap Relations")
+
+        golf_type = rel.tags.get("golf", None)
+
+        if golf_type == "fairway" and options_dict.get('fairway', True):
+            for member in rel.members:
+                if isinstance(member, overpy.RelationWay) and member.role == "outer":
+                    wayref = way_dict[member.ref]
+
+                    nds = []
+                    try:
+                        for node in wayref.get_nodes(resolve_missing=True): # Allow automatically resolving missing nodes, but this is VERY slow with the API requests, try to request beforehand
+                            nds.append(geopointcloud.latlonToTGC(node.lat, node.lon, x_offset, y_offset))
+                    except overpy.exception.OverPyException:
+                        printf("OpenStreetMap servers are too busy right now.  Try running this tool later.")
+                        return []
+
+                    # Check this shapes bounding box against the limits of the terrain, don't draw outside this bounds
+                    # Left, Top, Right, Bottom
+                    nbb = nodeBoundingBox(nds)
+                    if nbb[0] < ul_tgc[0] or nbb[1] > ul_tgc[2] or nbb[2] > lr_tgc[0] or nbb[3] < lr_tgc[2]:
+                        # Off of map, skip
+                        continue
+
+                    fw_spline = newFairway(nds, course_version)
+                    course_json[spline_tag].append(fw_spline)
 
     for n, rel in enumerate(osm_result.relations):
         if time.time() > last_print_time + status_print_duration:
@@ -538,7 +634,7 @@ def addOSMToTGC(course_json, geopointcloud, osm_result, x_offset=0.0, y_offset=0
 
     # Insert all the found holes
     for key in sorted(hole_dictionary):
-        course_json["holes"].append(hole_dictionary[key])
+        course_json[hole_tag].append(hole_dictionary[key])
     
     trees = [] # Trees must be dealt with differently, and are passed up to a higher level.  Tree format is (x, z, radius, height)
     if options_dict.get('tree', False): # Trees are currently the only node right now.  This takes a lot of time to loop through, so skip if possible
@@ -566,7 +662,7 @@ def addOSMToTGC(course_json, geopointcloud, osm_result, x_offset=0.0, y_offset=0
     # Return the tree list for later use
     return trees
 
-def addOSMFromXML(course_json, xml_data, options_dict={}, printf=print):
+def addOSMFromXML(course_json, xml_data, options_dict={}, printf=print, course_version=-1):
     printf("Adding OpenStreetMap from XML")
     op = overpy.Overpass()
     result = op.parse_xml(xml_data)
@@ -587,7 +683,7 @@ def addOSMFromXML(course_json, xml_data, options_dict={}, printf=print):
     pc.addFromLatLon((latmin, lonmin), (latmax, lonmax), printf=printf)
 
     trees = addOSMToTGC(course_json, pc, result, x_offset=float(options_dict.get('adjust_ew', 0.0)), y_offset=float(options_dict.get('adjust_ns', 0.0)), \
-                options_dict=options_dict, printf=printf)
+                options_dict=options_dict, printf=printf, course_version=course_version)
 
     return course_json, trees
 
