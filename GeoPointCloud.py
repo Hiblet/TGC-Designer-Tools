@@ -178,7 +178,7 @@ class GeoPointCloud:
 
     def projToLatLon(self, easting, northing):
         # pyroj returns easting coordinate, northing coordinate
-        transformer = pyproj.Transformer.from_proj(self._proj, self._platlon, False)
+        transformer = pyproj.Transformer.from_proj(self._proj, self._platlon, True)
         lonlat = transformer.transform(easting, northing)
         return (lonlat[1], lonlat[0])
 
