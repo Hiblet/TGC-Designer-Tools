@@ -1,40 +1,75 @@
-# TGC-Designer-Tools
+# TGC-Designer-Tools (2k25-friendly fork)
 
-Tools to support course creation and Lidar/Terrain Creation in The Golf Club 2019.
+This is a community fork of Chad Rockey's TGC-Designer-Tools. It keeps the original features (Lidar LAZ + OpenStreetMap pipeline) and adds fixes so empty PGA2K25 templates work.
 
-To say thanks and leave a tip for this software if it's saved you hundreds of hours: [https://www.paypal.me/chaddev](https://www.paypal.me/chaddev)
+This includes updates from HiCamino that provide optional smoothing facilities.
 
-For ongoing course requests, priority support or feature requests, I've opened a Patreon for this project: [https://www.patreon.com/chadgolf](https://www.patreon.com/chadgolf)
 
-Patreon is a subscription model that allows communication and continuing support between creators and their communities.
+## What is new in this fork
 
-## Windows EXE Download
+- Fix: first-tab render no longer crashes with `KeyError: 'surfaceBrushes'` on 2K25 templates.
+- Fix: "Shift Features" works across legacy and 2K25 format files.
 
-Github is intended for software developers.  If you just want to run the software, view the latest releases here: [https://github.com/chadrockey/TGC-Designer-Tools/releases](https://github.com/chadrockey/TGC-Designer-Tools/releases)
+Tested on Windows 11, Python 3.11.
 
-Be sure to read the Tutorial! [https://chadrockey.github.io/TGC-Designer-Tools/TUTORIAL](https://chadrockey.github.io/TGC-Designer-Tools/TUTORIAL)
 
-Developers and others can look through and run the code.  The main entry points are tgc_gui, lidar_map_api, and tgc_image_terrain.
 
-------
+## Quick start (Windows, run from source as a developer)
 
-Shameless plug: I work primarily as a software consultant.  If you or your company need electronics, sensors, data processing, automation or robotics expertise, feel free to send inquiries to chad@chadev.com.  I'm part of a medium sized team and we've worked for many businesses you're familiar with, and we have a long history of success.
+1) Install Python 3.11 (x64) and Git for Windows.
 
-![3D Course View](https://i.imgur.com/vVPcNBh.png)
+2) Create a venv (virtual environment) and install dependencies:
+   py -3.11 -m venv .venv
+   .venv\Scripts\activate
+   python -m pip install -U pip setuptools wheel
+   pip install -r requirements.txt
+   
+3) Run:
+   python tgc_gui.py
 
-![Green Slopes with Bunker](https://i.imgur.com/VazhLEU.png)
+   If OpenCV DLL issues occur, try:
+      pip uninstall -y opencv-python
+      pip install opencv-python-headless==4.10.0.84   
+      
+      
+## Troubleshooting
 
-![User Interface](https://i.imgur.com/4GnzENd.png)
+### Pip fails on laspy with "No module named 'numpy'"
 
-## Software Developer Installation
+The legacy laspy fork imports numpy at build time. Install numpy first, then the rest:
 
-Currently targeting Python 3.12.5
+   py -3.11 -m venv .venv
+   .\.venv\Scripts\activate
+   pip install -U pip setuptools wheel
+   pip install "numpy==1.26.4"
+   pip install -r requirements.txt
+   
+Make sure the laspy line in requirements.txt uses https, not git:
+   git+https://github.com/chadrockey/laspy@14_fix#egg=laspy   
+   
+   
+### VS Code shows yellow squiggles for cv2 / numpy / PIL but the app runs
 
-Get the dependencies with:
+That is the editor not seeing your venv, not a runtime error.
 
-python -m pip install -r requirements.txt
+   Ctrl+Shift+P -> Python: Select Interpreter -> choose .venv\Scripts\python.exe
+   Ctrl+Shift+P -> Python: Restart Language Server
 
-## Distribution
+   If needed, add to .vscode/settings.json:
 
-pyinstaller -F --add-binary="./laszip/laszip-cli.exe;laszip" --additional-hooks-dir="./PyInstaller/hooks/" tgc_gui.py
+   {
+     "python.defaultInterpreterPath": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
+     "python.terminal.activateEnvironment": true,
+     "terminal.integrated.defaultProfile.windows": "Command Prompt",
+     "python.analysis.extraPaths": [
+       "${workspaceFolder}\\.venv\\Lib\\site-packages"
+     ]
+   }   
+   
+   
+### OpenCV DLL issues on some machines
 
+If you hit a DLL load error and you do not need GUI windows from OpenCV, use the headless wheel:
+
+   pip uninstall -y opencv-python
+   pip install opencv-python-headless==4.10.0.84   
