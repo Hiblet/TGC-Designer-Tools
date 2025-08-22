@@ -174,17 +174,16 @@ def drawCourseAsImage(course_json, course_version):
         layer_json = course_json["userLayers"]
     
     # Draw terrain first
-    drawBrushesOnImage(layer_json["terrainHeight"], (0.35, 0.2, 0.0), im, pc, image_scale)
-
-    drawBrushesOnImage(layer_json["height"], (0.5, 0.2755, 0.106), im, pc, image_scale)
+    drawBrushesOnImage(layer_json.get("terrainHeight", []), (0.35, 0.2, 0.0), im, pc, image_scale)
+    drawBrushesOnImage(layer_json.get("height", []), (0.5, 0.2755, 0.106), im, pc, image_scale)
 
     # Next draw surfaces in correct stacking orders
-    uls = layer_json[surface_tag]
-    ss = course_json[spline_tag]
+    uls = layer_json.get(surface_tag, [])
+    ss = course_json.get(spline_tag, [])
 
     # Draw real water
     water_color = (0.1, 0.2, 0.5)
-    drawBrushesOnImage(layer_json["water"], water_color, im, pc, image_scale)
+    drawBrushesOnImage(layer_json.get("water", []), water_color, im, pc, image_scale)
 
     # Mulch/Water Visualization Surface #2 has low priority, so draw it first
     # Drawing as the black/dark blue, but it will show up different depending on scene
@@ -232,25 +231,25 @@ def drawCourseAsImage(course_json, course_version):
 
     # Draw out of bounds as white boundaries
     out_of_bounds_color = (1.0, 1.0, 1.0)
-    oob_json = layer_json[oob_tag]
-    if course_version == 25:
-        oob_json = oob_json["brushes"]
+    oob_json = layer_json.get(oob_tag, [])
+    if course_version == 25 and isinstance(oob_json, dict):
+        oob_json = oob_json.get("brushes", [])
     drawBrushesOnImage(oob_json, out_of_bounds_color, im, pc, image_scale, fill=False)
 
     # Draw crowds as pink boundaries
     crowd_color = (1.0, 0.4, 0.75)
-    crowd_json = layer_json[crowd_tag]
-    if course_version == 25:
-        crowd_json = crowd_json["brushes"]
+    crowd_json = layer_json.get(crowd_tag, [])
+    if course_version == 25 and isinstance(crowd_json, dict):
+        crowd_json = crowd_json.get("brushes", [])
     drawBrushesOnImage(crowd_json, crowd_color, im, pc, image_scale, fill=False)
 
     # Draw objects last in yellow
     object_color = (0.95, 0.9, 0.2)
-    drawObjectsOnImage(course_json[obj_tag], object_color, im, pc, image_scale)
+    drawObjectsOnImage(course_json.get(obj_tag, []), object_color, im, pc, image_scale)
 
     # Last draw holes themselves
     hole_color = (0.9, 0.3, 0.2)
-    drawHolesOnImage(course_json[hole_tag], hole_color, im, pc, image_scale, course_version)
+    drawHolesOnImage(course_json.get(hole_tag, []), hole_color, im, pc, image_scale, course_version)
 
     return im
 

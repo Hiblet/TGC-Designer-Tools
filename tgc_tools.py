@@ -341,6 +341,90 @@ def shift_terrain(course_json, easting_shift, northing_shift, course_version):
     return course_json
 
 def shift_features(course_json, easting_shift, northing_shift, course_version):
+    """Shift feature geometry defensively across schema variants.
+
+    Some 2K25 templates omit legacy keys like 'surfaceBrushes' or nest brushes
+    under userLayers/layers. Use .get(...) and type checks to avoid KeyErrors.
+    """
+    if course_version not in tgc_definitions.version_tags:
+        return
+
+    dim2 = 'y'
+    if course_version == 25:
+        layer_json = course_json
+        dim2 = 'z'
+    elif course_version == 23:
+        layer_json = course_json.get("userLayers2", {})
+    else:
+        layer_json = course_json.get("userLayers", {})
+    
+    hole_tag   = tgc_definitions.version_tags[course_version]['holes']
+    tee_tag    = tgc_definitions.version_tags[course_version]['tees']
+    crowd_tag  = tgc_definitions.version_tags[course_version]['crowd']
+    spline_tag = tgc_definitions.version_tags[course_version]['splines']
+    surface_tag= tgc_definitions.version_tags[course_version]['surfaces']
+    oob_tag    = tgc_definitions.version_tags[course_version]['oob']
+    obj_tag    = tgc_definitions.version_tags[course_version]['objects']
+
+    # Shift splines (waypoints)
+    for i in course_json.get(spline_tag, []):
+        for wp in i.get("waypoints", []):
+            if "pointOne" in wp and "x" in wp["pointOne"]:
+                wp["pointOne"]["x"] += easting_shift
+            if "pointTwo" in wp and "x" in wp["pointTwo"]:
+                wp["pointTwo"]["x"] += easting_shift
+            if "waypoint" in wp and "x" in wp["waypoint"]:
+                wp["waypoint"]["x"] += easting_shift
+            if "pointOne" in wp and dim2 in wp["pointOne"]:
+                wp["pointOne"][dim2] += northing_shift
+            if "pointTwo" in wp and dim2 in wp["pointTwo"]:
+                wp["pointTwo"][dim2] += northing_shift
+            if "waypoint" in wp and dim2 in wp["waypoint"]:
+                wp["waypoint"][dim2] += northing_shift
+
+    # Shift holes (waypoints + tee positions)
+    for h in course_json.get(hole_tag, []):
+        for w in h.get("waypoints", []):
+            if "x" in w: w["x"] += easting_shift
+            if "z" in w: w["z"] += northing_shift
+        for t in h.get(tee_tag, []):
+            tp = t["position"] if (course_version == 25 and "position" in t) else t
+            if "x" in tp: tp["x"] += easting_shift
+            if "z" in tp: tp["z"] += northing_shift
+        # Pin positions are relative; no shift
+
+    # Shift brushes (surfaces, water, oob, crowd)
+    oob_json   = layer_json.get(oob_tag, [])
+    crowd_json = layer_json.get(crowd_tag, [])
+    if course_version == 25:
+        if isinstance(oob_json, dict):
+            oob_json = oob_json.get("brushes", [])
+        if isinstance(crowd_json, dict):
+            crowd_json = crowd_json.get("brushes", [])
+    for b in itertools.chain(layer_json.get(surface_tag, []),
+                             layer_json.get("water", []),
+                             oob_json,
+                             crowd_json):
+        if 'position' in b:
+            if 'x' in b['position']: b['position']['x'] += easting_shift
+            if 'z' in b['position']: b['position']['z'] += northing_shift
+
+    # Shift objects (items and clusters)
+    for o in course_json.get(obj_tag, []):
+        val = o.get("Value", {})
+        for i in val.get("items", []):
+            if 'position' in i:
+                if 'x' in i['position']: i['position']['x'] += easting_shift
+                if 'z' in i['position']: i['position']['z'] += northing_shift
+        for c in val.get("clusters", []):
+            if 'position' in c:
+                if 'x' in c['position']: c['position']['x'] += easting_shift
+                if 'z' in c['position']: c['position']['z'] += northing_shift
+
+    return course_json
+
+
+def shift_features_bugged(course_json, easting_shift, northing_shift, course_version):
     if course_version not in tgc_definitions.version_tags:
         return
 
