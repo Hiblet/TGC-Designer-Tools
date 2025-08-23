@@ -29,13 +29,13 @@ Tested on Windows 11, Python 3.11.
 ```          
    
 3) Run:
-
+```bat
     python tgc_gui.py
 
    If OpenCV DLL issues occur, try:
       pip uninstall -y opencv-python
       pip install opencv-python-headless==4.10.0.84   
-      
+```        
       
 ## Troubleshooting
 
