@@ -22,7 +22,9 @@ Tested on Windows 11, Python 3.11.
    py -3.11 -m venv .venv
    .venv\Scripts\activate
    python -m pip install -U pip setuptools wheel
-   pip install -r requirements.txt
+   pip install "numpy==1.26.4"             
+   pip install laspy[lazrs,laszip]==2.6.1
+   pip install -r requirements.txt               
    
 3) Run:
    python tgc_gui.py
