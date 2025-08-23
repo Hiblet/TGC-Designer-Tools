@@ -44,10 +44,19 @@ The legacy laspy fork imports numpy at build time. Install numpy first, then the
    .\.venv\Scripts\activate
    pip install -U pip setuptools wheel
    pip install "numpy==1.26.4"
+   pip install "laspy[lazrs,laszip]==2.6.1"
    pip install -r requirements.txt
    
-Make sure the laspy line in requirements.txt uses https, not git:
-   git+https://github.com/chadrockey/laspy@14_fix#egg=laspy   
+### LAZ won’t load or you see `module 'laspy' has no attribute 'open'`
+
+You’re on the old laspy 1.x API. Update to laspy 2.x with LAZ backends:
+
+   py -3.11 -m venv .venv
+   .\.venv\Scripts\activate
+   pip install -U pip setuptools wheel
+   pip uninstall -y laspy
+   pip install "laspy[lazrs,laszip]==2.6.1"
+   pip install -r requirements.txt
    
    
 ### VS Code shows yellow squiggles for cv2 / numpy / PIL but the app runs
