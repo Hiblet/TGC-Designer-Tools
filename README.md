@@ -25,7 +25,8 @@ Tested on Windows 11, Python 3.11.
     python -m pip install -U pip setuptools wheel
     pip install "numpy==1.26.4"             
     pip install laspy[lazrs,laszip]==2.6.1
-    pip install -r requirements.txt               
+    pip install -r requirements.txt     
+```          
    
 3) Run:
 
