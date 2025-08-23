@@ -1,8 +1,8 @@
 # UTF-8
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(0, 4, 0, 0),
-    prodvers=(0, 4, 0, 0),
+    filevers=(0, 4, 1, 0),
+    prodvers=(0, 4, 1, 0),
     mask=0x3f,
     flags=0x0,
     fileType=0x1,      # VFT_APP
@@ -16,11 +16,11 @@ VSVersionInfo(
         [
           StringStruct(u"CompanyName", u"Steve Hibbert"),
           StringStruct(u"FileDescription", u"TGC-Designer-Tools (2025 community fork)"),
-          StringStruct(u"FileVersion", u"0.4.0.0"),
+          StringStruct(u"FileVersion", u"0.4.1.0"),
           StringStruct(u"InternalName", u"TGC-Designer-Tools.exe"),
           StringStruct(u"OriginalFilename", u"TGC-Designer-Tools.exe"),
           StringStruct(u"ProductName", u"TGC-Designer-Tools"),
-          StringStruct(u"ProductVersion", u"0.4.0")
+          StringStruct(u"ProductVersion", u"0.4.1")
         ]
       )
     ]),
