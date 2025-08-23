@@ -19,7 +19,7 @@ Tested on Windows 11, Python 3.11.
 1) Install Python 3.11 (x64) and Git for Windows.
 
 2) Create a venv (virtual environment) and install dependencies:
-  
+```bat  
     py -3.11 -m venv .venv
     .venv\Scripts\activate
     python -m pip install -U pip setuptools wheel
