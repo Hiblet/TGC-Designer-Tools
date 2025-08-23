@@ -19,12 +19,13 @@ Tested on Windows 11, Python 3.11.
 1) Install Python 3.11 (x64) and Git for Windows.
 
 2) Create a venv (virtual environment) and install dependencies:
-   py -3.11 -m venv .venv
-   .venv\Scripts\activate
-   python -m pip install -U pip setuptools wheel
-   pip install "numpy==1.26.4"             
-   pip install laspy[lazrs,laszip]==2.6.1
-   pip install -r requirements.txt               
+  
+    py -3.11 -m venv .venv
+    .venv\Scripts\activate
+    python -m pip install -U pip setuptools wheel
+    pip install "numpy==1.26.4"             
+    pip install laspy[lazrs,laszip]==2.6.1
+    pip install -r requirements.txt               
    
 3) Run:
    python tgc_gui.py
@@ -40,47 +41,47 @@ Tested on Windows 11, Python 3.11.
 
 The legacy laspy fork imports numpy at build time. Install numpy first, then the rest:
 
-   py -3.11 -m venv .venv
-   .\.venv\Scripts\activate
-   pip install -U pip setuptools wheel
-   pip install "numpy==1.26.4"
-   pip install "laspy[lazrs,laszip]==2.6.1"
-   pip install -r requirements.txt
+    py -3.11 -m venv .venv
+    .\.venv\Scripts\activate
+    pip install -U pip setuptools wheel
+    pip install "numpy==1.26.4"
+    pip install "laspy[lazrs,laszip]==2.6.1"
+    pip install -r requirements.txt
    
 ### LAZ won’t load or you see `module 'laspy' has no attribute 'open'`
 
 You’re on the old laspy 1.x API. Update to laspy 2.x with LAZ backends:
 
-   py -3.11 -m venv .venv
-   .\.venv\Scripts\activate
-   pip install -U pip setuptools wheel
-   pip uninstall -y laspy
-   pip install "laspy[lazrs,laszip]==2.6.1"
-   pip install -r requirements.txt
+    py -3.11 -m venv .venv
+    .\.venv\Scripts\activate
+    pip install -U pip setuptools wheel
+    pip uninstall -y laspy
+    pip install "laspy[lazrs,laszip]==2.6.1"
+    pip install -r requirements.txt
    
    
 ### VS Code shows yellow squiggles for cv2 / numpy / PIL but the app runs
 
 That is the editor not seeing your venv, not a runtime error.
 
-   Ctrl+Shift+P -> Python: Select Interpreter -> choose .venv\Scripts\python.exe
-   Ctrl+Shift+P -> Python: Restart Language Server
+    Ctrl+Shift+P -> Python: Select Interpreter -> choose .venv\Scripts\python.exe
+    Ctrl+Shift+P -> Python: Restart Language Server
 
-   If needed, add to .vscode/settings.json:
+If needed, add to .vscode/settings.json:
 
-   {
-     "python.defaultInterpreterPath": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
-     "python.terminal.activateEnvironment": true,
-     "terminal.integrated.defaultProfile.windows": "Command Prompt",
-     "python.analysis.extraPaths": [
-       "${workspaceFolder}\\.venv\\Lib\\site-packages"
-     ]
-   }   
+    {
+      "python.defaultInterpreterPath": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
+      "python.terminal.activateEnvironment": true,
+      "terminal.integrated.defaultProfile.windows": "Command Prompt",
+      "python.analysis.extraPaths": [
+        "${workspaceFolder}\\.venv\\Lib\\site-packages"
+      ]
+    }   
    
    
 ### OpenCV DLL issues on some machines
 
 If you hit a DLL load error and you do not need GUI windows from OpenCV, use the headless wheel:
 
-   pip uninstall -y opencv-python
-   pip install opencv-python-headless==4.10.0.84   
+    pip uninstall -y opencv-python
+    pip install opencv-python-headless==4.10.0.84   
