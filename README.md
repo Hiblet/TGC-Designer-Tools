@@ -28,7 +28,8 @@ Tested on Windows 11, Python 3.11.
     pip install -r requirements.txt               
    
 3) Run:
-   python tgc_gui.py
+
+    python tgc_gui.py
 
    If OpenCV DLL issues occur, try:
       pip uninstall -y opencv-python
