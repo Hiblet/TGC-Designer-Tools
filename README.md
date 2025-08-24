@@ -89,3 +89,21 @@ If you hit a DLL load error and you do not need GUI windows from OpenCV, use the
     pip uninstall -y opencv-python
     pip install opencv-python-headless==4.10.0.84   
 ```
+
+
+## Building an executable
+
+Set up a separate virtual environment for the build release, and install the dependencies, plus pyinstaller...
+```bat
+    py -3.11 -m venv .venv-build
+    .\.venv-build\Scripts\activate
+    pip install -U pip setuptools wheel
+    pip install "numpy==1.26.4"
+    pip install "laspy[lazrs,laszip]==2.6.1"
+    pin install -r requirements.txt
+    pip install pyinstaller
+```
+The laszip binary is no longer required, as have laszip 2.6.1 as a dependency, so the pyinstaller build command is...
+```bat
+    python -m PyInstaller --clean --noupx --onefile --version-file file-version.txt --name TGC-Designer-Tools --collect-datas pyproj tgc_gui.py  
+```
