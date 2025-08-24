@@ -42,35 +42,36 @@ Tested on Windows 11, Python 3.11.
 ### Pip fails on laspy with "No module named 'numpy'"
 
 The legacy laspy fork imports numpy at build time. Install numpy first, then the rest:
-
+```bat
     py -3.11 -m venv .venv
     .\.venv\Scripts\activate
     pip install -U pip setuptools wheel
     pip install "numpy==1.26.4"
     pip install "laspy[lazrs,laszip]==2.6.1"
     pip install -r requirements.txt
-   
+```   
+
 ### LAZ won’t load or you see `module 'laspy' has no attribute 'open'`
 
 You’re on the old laspy 1.x API. Update to laspy 2.x with LAZ backends:
-
+```bat
     py -3.11 -m venv .venv
     .\.venv\Scripts\activate
     pip install -U pip setuptools wheel
     pip uninstall -y laspy
     pip install "laspy[lazrs,laszip]==2.6.1"
     pip install -r requirements.txt
-   
+```      
    
 ### VS Code shows yellow squiggles for cv2 / numpy / PIL but the app runs
 
 That is the editor not seeing your venv, not a runtime error.
-
+```bat
     Ctrl+Shift+P -> Python: Select Interpreter -> choose .venv\Scripts\python.exe
     Ctrl+Shift+P -> Python: Restart Language Server
-
+```
 If needed, add to .vscode/settings.json:
-
+```bat
     {
       "python.defaultInterpreterPath": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
       "python.terminal.activateEnvironment": true,
@@ -79,11 +80,12 @@ If needed, add to .vscode/settings.json:
         "${workspaceFolder}\\.venv\\Lib\\site-packages"
       ]
     }   
-   
+```   
    
 ### OpenCV DLL issues on some machines
 
 If you hit a DLL load error and you do not need GUI windows from OpenCV, use the headless wheel:
-
+```bat
     pip uninstall -y opencv-python
     pip install opencv-python-headless==4.10.0.84   
+```

@@ -7,11 +7,58 @@ import numpy as np
 import overpy
 import time
 
+
 import tgc_definitions
+
+# Retry policy for OSM busy handling
+OSM_RETRIES_SHORT = 10       # for getOSMData()
+OSM_RETRIES_LONG  = 1000     # for addOSMToTGC()
+OSM_SLEEP_SECONDS  = 1.0      # seconds
+
 
 status_print_duration = 1.0 # Print progress every N seconds
 
 spline_configuration = None
+
+# Wrapper to retry OSM when busy
+def overpass_query_retry(api, query, printf=print, name="OSM", max_retries=OSM_RETRIES_SHORT):
+    """
+    Minimal retry wrapper for Overpass queries:
+      - prints progress
+      - prints the real exception
+      - waits a fixed 1s between attempts
+      - returns None after final failure (caller decides what to do)
+    """
+    for attempt in range(1, max_retries + 1):
+        printf(f"[{name}] Attempt {attempt}/{max_retries} ...")
+        try:
+            return api.query(query)
+        except Exception as e:
+            printf(f"[{name}] ERROR: {type(e).__name__}: {e}")
+            if attempt == max_retries:
+                printf(f"[{name}] Gave up after {max_retries} attempts.")
+                return None
+            printf(f"[{name}] Retrying in {OSM_SLEEP_SECONDS:.0f}s ...")
+            time.sleep(OSM_SLEEP_SECONDS)
+
+def overpass_retry_get_nodes(way_like, printf=print, name="way", max_retries=OSM_RETRIES_LONG):
+    """
+    Minimal retry for Overpass node resolution used by overpy Way/RelationWay:
+    - prints the real exception
+    - waits a fixed 1s between attempts
+    - returns the node list on success, or None after final failure
+    """
+    for attempt in range(1, max_retries + 1):
+        printf(f"[{name}] get_nodes attempt {attempt}/{max_retries} ...")
+        try:
+            return way_like.get_nodes(resolve_missing=True)
+        except Exception as e:
+            printf(f"[{name}] ERROR: {type(e).__name__}: {e}")
+            if attempt == max_retries:
+                printf(f"[{name}] Gave up after {max_retries} attempts; skipping this feature.")
+                return None
+            printf(f"[{name}] Retrying in {OSM_SLEEP_SECONDS:.0f}s ...")
+            time.sleep(OSM_SLEEP_SECONDS)            
 
 # Returns left, top, right, bottom
 def nodeBoundingBox(nds):
@@ -406,13 +453,16 @@ def getOSMData(bottom_lat, left_lon, top_lat, right_lon, printf=print):
     op = overpy.Overpass()
     # Order is South, West, North, East
     coord_string = str(bottom_lat) + "," + str(left_lon) + "," + str(top_lat) + "," + str(right_lon)
-    try:
-        query = "(node(" + coord_string + ");way(" + coord_string + ");rel(" + coord_string + "););out;"
-        printf("OpenStreetMap Overpass query: " + query)
-        return op.query(query) # Request both nodes and ways for the region of interest using a union
-    except overpy.exception.OverPyException:
+
+    query = "(node(" + coord_string + ");way(" + coord_string + ");rel(" + coord_string + "););out;" # Request both nodes and ways for the region of interest using a union
+    printf("OpenStreetMap Overpass query (this may take multiple minutes): " + query)
+
+    res = overpass_query_retry(op, query, printf=printf, name="getOSMData", max_retries=OSM_RETRIES_SHORT)
+    if res is None:
         printf("OpenStreetMap servers are too busy right now.  Try running this tool later.")
-        return None
+
+    return res 
+
 
 def clearFeatures(course_json, course_version):
     if course_version not in tgc_definitions.version_tags:
@@ -431,6 +481,10 @@ def clearFeatures(course_json, course_version):
 
 def addOSMToTGC(course_json, geopointcloud, osm_result, x_offset=0.0, y_offset=0.0, options_dict={}, spline_configuration_json=None, printf=print, course_version=-1):
     global spline_configuration
+
+    if osm_result is None:
+        printf("Skipping OSM import: no data returned from Overpass.")
+        return []      
 
     if course_version not in tgc_definitions.version_tags:
         print("invalid version")
@@ -486,12 +540,12 @@ def addOSMToTGC(course_json, geopointcloud, osm_result, x_offset=0.0, y_offset=0
 
         # Get the shape of this way
         nds = []
-        try:
-            for node in way.get_nodes(resolve_missing=True): # Allow automatically resolving missing nodes, but this is VERY slow with the API requests, try to request beforehand
-                nds.append(geopointcloud.latlonToTGC(node.lat, node.lon, x_offset, y_offset))
-        except overpy.exception.OverPyException:
-            printf("OpenStreetMap servers are too busy right now.  Try running this tool later.")
-            return []
+        nodes = overpass_retry_get_nodes(way, printf=print, name=f"way {way.id}", max_retries=OSM_RETRIES_LONG)
+        if nodes is None:            
+            continue # Skip this way but keep processing others
+        for node in nodes:
+            nds.append(geopointcloud.latlonToTGC(node.lat, node.lon, x_offset, y_offset))
+        
         # Check this shapes bounding box against the limits of the terrain, don't draw outside this bounds
         # Left, Top, Right, Bottom
         nbb = nodeBoundingBox(nds)
@@ -585,12 +639,12 @@ def addOSMToTGC(course_json, geopointcloud, osm_result, x_offset=0.0, y_offset=0
                     wayref = way_dict[member.ref]
 
                     nds = []
-                    try:
-                        for node in wayref.get_nodes(resolve_missing=True): # Allow automatically resolving missing nodes, but this is VERY slow with the API requests, try to request beforehand
-                            nds.append(geopointcloud.latlonToTGC(node.lat, node.lon, x_offset, y_offset))
-                    except overpy.exception.OverPyException:
-                        printf("OpenStreetMap servers are too busy right now.  Try running this tool later.")
-                        return []
+                    nodes = overpass_retry_get_nodes(wayref, printf=print, name=f"relation-way fairway {member.ref}", max_retries=OSM_RETRIES_LONG)
+                    if nodes is None:
+                        continue # Skip this feature within the relation
+    
+                    for node in nodes:
+                        nds.append(geopointcloud.latlonToTGC(node.lat, node.lon, x_offset, y_offset))
 
                     # Check this shapes bounding box against the limits of the terrain, don't draw outside this bounds
                     # Left, Top, Right, Bottom
@@ -607,12 +661,13 @@ def addOSMToTGC(course_json, geopointcloud, osm_result, x_offset=0.0, y_offset=0
                     wayref = way_dict[member.ref]
 
                     nds = []
-                    try:
-                        for node in wayref.get_nodes(resolve_missing=True): # Allow automatically resolving missing nodes, but this is VERY slow with the API requests, try to request beforehand
-                            nds.append(geopointcloud.latlonToTGC(node.lat, node.lon, x_offset, y_offset))
-                    except overpy.exception.OverPyException:
-                        printf("OpenStreetMap servers are too busy right now.  Try running this tool later.")
-                        return []
+                    nodes = overpass_retry_get_nodes(wayref, printf=print, name=f"relation-way rough {member.ref}", max_retries=OSM_RETRIES_LONG)
+                    if nodes is None:
+                        continue # Skip this feature within the relation
+    
+                    for node in nodes:
+                        nds.append(geopointcloud.latlonToTGC(node.lat, node.lon, x_offset, y_offset))                    
+
 
                     # Check this shapes bounding box against the limits of the terrain, don't draw outside this bounds
                     # Left, Top, Right, Bottom
@@ -679,11 +734,18 @@ def addOSMFromXML(course_json, xml_data, options_dict={}, printf=print, course_v
 
     return course_json, trees
 
-def drawWayOnImage(way, color, im, pc, image_scale, thickness=-1, x_offset=0.0, y_offset=0.0):
+def drawWayOnImage(way, color, im, pc, image_scale, thickness=-1, x_offset=0.0, y_offset=0.0, printf=print):
     # Get the shape of this way and draw it as a poly
     nds = []
-    for node in way.get_nodes(resolve_missing=True): # Allow automatically resolving missing nodes, but this is VERY slow with the API requests, try to request them above instead
-        nds.append(pc.latlonToCV2(node.lat, node.lon, image_scale, x_offset, y_offset))
+
+    nodes = overpass_retry_get_nodes(way,printf=printf,name=f"preview way {getattr(way, 'id', '?')}",max_retries=OSM_RETRIES_SHORT )
+    if nodes is None:
+        # Skip drawing this shape but keep the rest of the preview going
+        return
+
+    for node in nodes:
+        nds.append(pc.latlonToCV2(node.lat, node.lon, image_scale, x_offset, y_offset))        
+
     # Uses points and not image pixels, so flip the x and y
     nds = np.array(nds)
     nds[:,[0, 1]] = nds[:,[1, 0]]
@@ -715,7 +777,7 @@ def addOSMToImage(ways, im, pc, image_scale, x_offset=0.0, y_offset=0.0, printf=
             else:
                 continue
 
-            drawWayOnImage(way, color, im, pc, image_scale, thickness, x_offset, y_offset)
+            drawWayOnImage(way, color, im, pc, image_scale, thickness=thickness, x_offset=x_offset, y_offset=y_offset, printf=printf)            
 
     # Draw bunkers last on top of all other layers as a hack until proper layer order is established here
     # Needed for things like bunkers in greens...  :\
@@ -723,6 +785,6 @@ def addOSMToImage(ways, im, pc, image_scale, x_offset=0.0, y_offset=0.0, printf=
         golf_type = way.tags.get("golf", None)
         if golf_type == "bunker":
             color = (0.85, 0.85, 0.7)
-            drawWayOnImage(way, color, im, pc, image_scale, x_offset, y_offset)
+            drawWayOnImage(way, color, im, pc, image_scale, thickness=-1, x_offset=x_offset, y_offset=y_offset, printf=printf)            
 
     return im

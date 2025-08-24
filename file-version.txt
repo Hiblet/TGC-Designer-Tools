@@ -16,11 +16,11 @@ VSVersionInfo(
         [
           StringStruct(u"CompanyName", u"Steve Hibbert"),
           StringStruct(u"FileDescription", u"TGC-Designer-Tools (2025 community fork)"),
-          StringStruct(u"FileVersion", u"0.4.1.0"),
+          StringStruct(u"FileVersion", u"0.4.2.0"),
           StringStruct(u"InternalName", u"TGC-Designer-Tools.exe"),
           StringStruct(u"OriginalFilename", u"TGC-Designer-Tools.exe"),
           StringStruct(u"ProductName", u"TGC-Designer-Tools"),
-          StringStruct(u"ProductVersion", u"0.4.1")
+          StringStruct(u"ProductVersion", u"0.4.2")
         ]
       )
     ]),

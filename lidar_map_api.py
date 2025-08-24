@@ -424,7 +424,7 @@ def generate_lidar_heightmap(pc, img_points, sample_scale, output_dir_path, osm_
         proj = pc.cv2ToProj(int(lower_y/tree_ratio)+t[1], int(lower_x/tree_ratio)+t[0], tree_scale)
         trees.append((proj[0], proj[1], t[2], t[3]))
 
-    printf("Writing files to disk")
+    printf("Writing files to disk; Calling OSM to get ways for mask image...")
     output_points = []
     if lidar_to_disk:
         printf("Writing the original points to disk not yet supported")
@@ -448,7 +448,7 @@ def generate_lidar_heightmap(pc, img_points, sample_scale, output_dir_path, osm_
     imc = normalize_image(imc)
     imc = cv2.cvtColor(imc, cv2.COLOR_GRAY2RGB)
     if osm_results:
-        imc = OSMTGC.addOSMToImage(osm_results.ways, imc, pc, sample_scale)
+        imc = OSMTGC.addOSMToImage(osm_results.ways, imc, pc, sample_scale, printf=printf)
     imc = imc[lower_y:upper_y, lower_x:upper_x]
     # Need to flip to write to disk in standard image order
     imc = np.flip(imc, 0)
@@ -471,7 +471,7 @@ def generate_lidar_heightmap(pc, img_points, sample_scale, output_dir_path, osm_
     printf("Saving data as: " + str(output_dir_path) + '/heightmap.npy')
     np.save(output_dir_path + '/heightmap', output_data) # Save as numpy format since we have raw float elevations
 
-    printf("Done!  Now go edit your mask.png to remove uneeded areas")
+    printf("Done!  Now go edit your mask.png to remove unneeded areas")
 
 if __name__ == "__main__":
     if len(sys.argv) < 4:
