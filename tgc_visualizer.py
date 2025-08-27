@@ -174,8 +174,12 @@ def drawObjectsOnImage(objects, color, im, pc, image_scale):
                 continue
 
             ry = rot.get("y", 0)
-            # NOTE: keeping existing behavior: rotation converted to radians
-            rotation = - ry * math.pi / 180.0
+            
+            try:
+                ry = float(ry)
+            except (TypeError, ValueError):
+                continue  # skip malformed rotation
+            rotation = -ry  # degrees, clockwise for OpenCV
 
             bounding_box = (center, (width, height), rotation)
             cv2.ellipse(im, bounding_box, color, thickness=-1, lineType=cv2.LINE_AA)
