@@ -11,178 +11,103 @@ import tgc_definitions
 import tgc_tools
 
 def drawBrushesOnImage(brushes, color, im, pc, image_scale, fill=True):
-    if not brushes:
-        return
-
     for brush in brushes:
-        # Guard required sub-objects
-        pos = brush.get("position")
-        scl = brush.get("scale")
-        rot = brush.get("rotation")
-        if not (pos and scl and rot):
-            continue
+        center = pc.tgcToCV2(brush["position"]["x"], brush["position"]["z"], image_scale)
+        center = (center[1], center[0]) # In point coordinates, not pixel
+        width = brush["scale"]["x"] / image_scale
+        height = brush["scale"]["z"] / image_scale
+        rotation = - brush["rotation"]["y"] # Inverted degrees, cv2 bounding_box uses degrees
 
-        # Pull required scalars; skip if any missing
-        x = pos.get("x"); z = pos.get("z")
-        sx = scl.get("x"); sz = scl.get("z")
-        ry = rot.get("y")
-        if None in (x, z, sx, sz, ry):
-            continue
+        thickness = 4
+        if fill:
+            thickness = -1 # Negative thickness is a filled ellipse
 
-        # Skip non-positive sizes (degenerate)
-        if not (isinstance(sx, (int, float)) and isinstance(sz, (int, float)) and sx > 0 and sz > 0):
-            continue
-
-        # Convert to image coords
-        center_cv = pc.tgcToCV2(x, z, image_scale)
-        center = (center_cv[1], center_cv[0])  # (col,row) order for OpenCV
-
-        width  = sx / image_scale
-        height = sz / image_scale
-        rotation = -ry  # OpenCV uses clockwise degrees
-
-        thickness = -1 if fill else 4
-
-        # Resolve brush type name safely
-        try:
-            brush_type_id = int(brush.get("type", -1))
-        except (TypeError, ValueError):
-            brush_type_id = -1
-        brush_type_name = tgc_definitions.brushes.get(brush_type_id, "unknown")
+        brush_type_name = tgc_definitions.brushes.get(int(brush["type"]), "unknown")
 
         if 'square' in brush_type_name:
-            # Squares seem to be larger than circles
-            box_points = cv2.boxPoints((center, (2.0 * width, 2.0 * height), rotation))
-            box_points = np.int32([box_points])  # fillPoly needs explicit int32
+            box_points = cv2.boxPoints((center, (2.0*width, 2.0*height), rotation)) # Squares seem to be larger than circles
+            box_points = np.int32([box_points]) # Bug with fillPoly, needs explict cast to 32bit
+
             if fill:
                 cv2.fillPoly(im, box_points, color, lineType=cv2.LINE_AA)
             else:
                 cv2.polylines(im, box_points, True, color, thickness, lineType=cv2.LINE_AA)
-        else:
-            # Draw as ellipse for now; circles scale like radius
-            bounding_box = (center, (1.414 * width, 1.414 * height), rotation)
-            cv2.ellipse(im, bounding_box, color, thickness=thickness, lineType=cv2.LINE_AA)            
+        else: # Draw as ellipse for now
+            '''center – The rectangle mass center.
+            size – Width and height of the rectangle.
+            angle – The rotation angle in a clockwise direction. When the angle is 0, 90, 180, 270 etc., the rectangle becomes an up-right rectangle.'''
+            bounding_box =  (center, (1.414*width, 1.414*height), rotation) # Circles seem to scale according to radius
+            cv2.ellipse(im, bounding_box, color, thickness=thickness, lineType=cv2.LINE_AA)  
 
 def drawSplinesOnImage(splines, color, im, pc, image_scale, course_version):
-    if not splines:
-        return
-
-    dim2 = "z" if course_version == 25 else "y"
-
     for s in splines:
-        wps = s.get("waypoints", [])
-        if not wps:
-            continue
-
-        # Collect control points; skip malformed waypoints
+        # Get the shape of this spline and draw it on the image
         nds = []
-        for wp in wps:
-            p = wp.get("waypoint")
-            if not p:
-                continue
-            x = p.get("x"); y2 = p.get(dim2)
-            if x is None or y2 is None:
-                continue
-            nds.append(pc.tgcToCV2(x, y2, image_scale))
+        dim2 = "y"
+        if course_version == 25:
+            dim2 = "z"
 
-        # Need at least 2 points to draw a line; 3 for fill
-        if len(nds) < 2:
+        for wp in s["waypoints"]:
+            nds.append(pc.tgcToCV2(wp["waypoint"]["x"], wp["waypoint"][dim2], image_scale))
+
+        # Don't try to draw malformed splines
+        if len(nds) == 0:
             continue
 
-        # Uses point coords not pixel indices → flip to (col,row)
+        # Uses points and not image pixels, so flip the x and y
         nds = np.array(nds)
-        nds[:, [0, 1]] = nds[:, [1, 0]]
-        nds = np.int32([nds])  # OpenCV wants int32
+        nds[:,[0, 1]] = nds[:,[1, 0]]
+        nds = np.int32([nds]) # Bug with fillPoly, needs explict cast to 32bit
 
-        # Thickness: default to image_scale, ensure >= 1
-        try:
-            thickness = int(s.get("width", image_scale))
-        except (TypeError, ValueError):
+        thickness = int(s["width"])
+        if(thickness < image_scale):
             thickness = int(image_scale)
-        if thickness < int(max(1, image_scale)):
-            thickness = int(max(1, image_scale))
 
-        is_filled = bool(s.get("isFilled")) or (s.get("state") == 3)
-        if is_filled and len(nds[0]) >= 3:
+        if ("isFilled" in s and s["isFilled"]) or (s["state"] == 3):
             cv2.fillPoly(im, nds, color, lineType=cv2.LINE_AA)
         else:
-            # isClosed can be a bool or inferred from state
-            is_closed = s.get("isClosed")
-            if is_closed is None:
-                # Fall back: treat nonzero state as closed if that matched prior behavior
-                is_closed = bool(s.get("state"))
-            cv2.polylines(im, nds, is_closed, color, thickness, lineType=cv2.LINE_AA)
+            isClosed = None
+
+            if "isClosed" in s:
+                isClosed = s["isClosed"]
+            else:
+                isClosed = s["state"]
+
+            cv2.polylines(im, nds, isClosed, color, thickness, lineType=cv2.LINE_AA)
 
 def drawObjectsOnImage(objects, color, im, pc, image_scale):
-    if not objects:
-        return
-
     for ob in objects:
-        val = ob.get("Value", {})
+        for item in ob["Value"]["items"]:
+            # Assuming all items are ellipses for now
+            center = pc.tgcToCV2(item["position"]["x"], item["position"]["z"], image_scale)
+            center = (center[1], center[0]) # In point coordinates, not pixel
+            width = max(item["scale"]["x"] / image_scale, 8.0)
+            height = max(item["scale"]["z"] / image_scale, 8.0)
+            rotation = - item["rotation"]["y"] * math.pi / 180.0 # Inverted degrees, cv2 uses clockwise radians
 
-        # Items
-        for item in val.get("items", []):
-            pos = item.get("position")
-            scl = item.get("scale")
-            rot = item.get("rotation", {})
-            if not (pos and scl):
-                continue
+            '''center – The rectangle mass center.
+            size – Width and height of the rectangle.
+            angle – The rotation angle in a clockwise direction. When the angle is 0, 90, 180, 270 etc., the rectangle becomes an up-right rectangle.'''
 
-            x = pos.get("x"); z = pos.get("z")
-            sx = scl.get("x"); sz = scl.get("z")
-            if None in (x, z, sx, sz):
-                continue
+            bounding_box_of_ellipse =  (center, (width, height), rotation)
 
-            center_cv = pc.tgcToCV2(x, z, image_scale)
-            center = (center_cv[1], center_cv[0])  # point coords (col,row)
+            cv2.ellipse(im, bounding_box_of_ellipse, color, thickness=-1, lineType=cv2.LINE_AA)
 
-            try:
-                width  = max(sx / image_scale, 8.0)
-                height = max(sz / image_scale, 8.0)
-            except Exception:
-                continue
+        for cluster in ob["Value"]["clusters"]:
+            # Assuming all items are ellipses for now
+            center = pc.tgcToCV2(cluster["position"]["x"], cluster["position"]["z"], image_scale)
+            center = (center[1], center[0]) # In point coordinates, not pixel
+            width = cluster["radius"] / image_scale
+            height = cluster["radius"] / image_scale
+            rotation = - cluster["rotation"]["y"] * math.pi / 180.0 # Inverted degrees, cv2 uses clockwise radians
 
-            ry = rot.get("y", 0)
+            '''center – The rectangle mass center.
+            size – Width and height of the rectangle.
+            angle – The rotation angle in a clockwise direction. When the angle is 0, 90, 180, 270 etc., the rectangle becomes an up-right rectangle.'''
 
-            try:
-                ry = float(ry)
-            except (TypeError, ValueError):
-                continue  # skip malformed rotation
-            rotation = -ry  # degrees, clockwise for OpenCV
+            bounding_box_of_ellipse =  (center, (width, height), rotation)
 
-            bounding_box = (center, (width, height), rotation)
-            cv2.ellipse(im, bounding_box, color, thickness=-1, lineType=cv2.LINE_AA)
-
-        # Clusters
-        for cluster in val.get("clusters", []):
-            pos = cluster.get("position")
-            rot = cluster.get("rotation", {})
-            if not pos:
-                continue
-
-            x = pos.get("x"); z = pos.get("z")
-            radius = cluster.get("radius")
-            if None in (x, z, radius):
-                continue
-
-            center_cv = pc.tgcToCV2(x, z, image_scale)
-            center = (center_cv[1], center_cv[0])
-
-            try:
-                width = height = radius / image_scale
-            except Exception:
-                continue
-
-            ry = rot.get("y", 0)
-            
-            try:
-                ry = float(ry)
-            except (TypeError, ValueError):
-                continue  # skip malformed rotation
-            rotation = -ry  # degrees, clockwise for OpenCV
-
-            bounding_box = (center, (width, height), rotation)
-            cv2.ellipse(im, bounding_box, color, thickness=-1, lineType=cv2.LINE_AA)
+            cv2.ellipse(im, bounding_box_of_ellipse, color, thickness=-1, lineType=cv2.LINE_AA)
 
 def drawHolesOnImage(holes, color, im, pc, image_scale, course_version):
     if course_version not in tgc_definitions.version_tags:
@@ -190,53 +115,43 @@ def drawHolesOnImage(holes, color, im, pc, image_scale, course_version):
     
     tee_tag = tgc_definitions.version_tags[course_version]['tees']
 
-    if not holes:
-        return
-
     for h in holes:
-        # Waypoints (need at least 2 to draw lines)
-        wps = h.get("waypoints", [])
+        # Get the shape of this spline and draw it on the image
         waypoints = []
-        for wp in wps:
-            x = wp.get("x"); z = wp.get("z")
-            if x is None or z is None:
-                continue
-            waypoints.append(pc.tgcToCV2(x, z, image_scale))
+        for wp in h["waypoints"]:
+            waypoints.append(pc.tgcToCV2(wp["x"], wp["z"], image_scale))
 
-        if len(waypoints) < 2:
-            continue  # nothing to draw for this hole
-
-        # Tees (2K25 tees may be wrapped in {"position": {...}})
         tees = []
-        for t in h.get(tee_tag, []):
-            tp = t.get("position", t) if course_version == 25 else t
-            x = tp.get("x"); z = tp.get("z")
-            if x is None or z is None:
-                continue
-            tees.append(pc.tgcToCV2(x, z, image_scale))
+        for t in h[tee_tag]:
+            tp = t
+            if course_version == 25:
+                tp = t["position"]
+            tees.append(pc.tgcToCV2(tp["x"], tp["z"], image_scale))
 
-        # Flip to (col,row) for OpenCV
-        waypoints = np.array(waypoints, dtype=np.int32)
-        waypoints[:, [0, 1]] = waypoints[:, [1, 0]]
-        if tees:
-            tees = np.array(tees, dtype=np.int32)
-            tees[:, [0, 1]] = tees[:, [1, 0]]
+        # Going to skip drawing pinPositions due to low resolution
+
+        # Uses points and not image pixels, so flip the x and y
+        waypoints = np.array(waypoints)
+        waypoints[:,[0, 1]] = waypoints[:,[1, 0]]
+        tees = np.array(tees)
+        tees[:,[0, 1]] = tees[:,[1, 0]]
 
         # Draw a line between each waypoint
         thickness = 5
-        for i in range(len(waypoints) - 1):
-            first_point  = tuple(waypoints[i])
-            second_point = tuple(waypoints[i + 1])
+        for i in range(0, len(waypoints)-1):
+            first_point = tuple(waypoints[i])
+            second_point = tuple(waypoints[i+1])
             cv2.line(im, first_point, second_point, color, thickness=thickness, lineType=cv2.LINE_AA)
 
-        # Draw a line from each tee to the second waypoint (index 1 exists because len>=2)
+        # Draw a line between each tee and the second waypoint
         first_waypoint = tuple(waypoints[1])
         for tee in tees:
-            cv2.line(im, tuple(tee), first_waypoint, color, thickness=thickness, lineType=cv2.LINE_AA)
+            t = tuple(tee)
+            cv2.line(im, t, first_waypoint, color, thickness=thickness, lineType=cv2.LINE_AA)
 
 def drawCourseAsImage(course_json, course_version):
-    im = np.zeros((2000, 2000, 3), np.float32)  # Courses are 2000m x 2000m
-    image_scale = 1.0  # Draw one pixel per meter
+    im = np.zeros((2000, 2000, 3), np.float32) # Courses are 2000m x 2000m
+    image_scale = 1.0 # Draw one pixel per meter
     pc = GeoPointCloud()
     pc.width = 2000.0
     pc.height = 2000.0
@@ -244,108 +159,95 @@ def drawCourseAsImage(course_json, course_version):
     if course_version not in tgc_definitions.version_tags:
         return
 
-    hole_tag   = tgc_definitions.version_tags[course_version]['holes']
-    crowd_tag  = tgc_definitions.version_tags[course_version]['crowd']
+    hole_tag = tgc_definitions.version_tags[course_version]['holes']
+    crowd_tag = tgc_definitions.version_tags[course_version]['crowd']    
     spline_tag = tgc_definitions.version_tags[course_version]['splines']
-    surface_tag= tgc_definitions.version_tags[course_version]['surfaces']
-    oob_tag    = tgc_definitions.version_tags[course_version]['oob']
-    obj_tag    = tgc_definitions.version_tags[course_version]['objects']
+    surface_tag = tgc_definitions.version_tags[course_version]['surfaces']
+    oob_tag = tgc_definitions.version_tags[course_version]['oob']
+    obj_tag = tgc_definitions.version_tags[course_version]['objects']
 
-    # Pick layer container (reads only, so .get is fine)
     if course_version == 25:
         layer_json = course_json
     elif course_version == 23:
-        layer_json = course_json.get("userLayers2", {})
+        layer_json = course_json["userLayers2"]
     else:
-        layer_json = course_json.get("userLayers", {})
-
+        layer_json = course_json["userLayers"]
+    
     # Draw terrain first
     drawBrushesOnImage(layer_json.get("terrainHeight", []), (0.35, 0.2, 0.0), im, pc, image_scale)
-    drawBrushesOnImage(layer_json.get("height", []),        (0.5,  0.2755, 0.106), im, pc, image_scale)
+    drawBrushesOnImage(layer_json.get("height", []), (0.5, 0.2755, 0.106), im, pc, image_scale)
 
-    # Surfaces (2K25 may wrap as {"brushes":[...]})
+    # Next draw surfaces in correct stacking orders
     uls = layer_json.get(surface_tag, [])
-    if course_version == 25 and isinstance(uls, dict):
-        uls = uls.get("brushes", [])
+    ss = course_json.get(spline_tag, [])
 
-    # Splines may live at root or layer
-    ss = (course_json.get(spline_tag, []) or layer_json.get(spline_tag, []))
-
-    # Real water (2K25 may wrap)
-    water = layer_json.get("water", [])
-    if course_version == 25 and isinstance(water, dict):
-        water = water.get("brushes", [])
+    # Draw real water
     water_color = (0.1, 0.2, 0.5)
-    drawBrushesOnImage(water, water_color, im, pc, image_scale)
+    drawBrushesOnImage(layer_json.get("water", []), water_color, im, pc, image_scale)
 
-    
-    # Helper selectors with .get(...) to avoid KeyErrors
-    def spl(n):  # splines by surface id
-        return [s for s in ss if isinstance(s, dict) and s.get("surface") == n]
-
-    def br(n):   # brushes by surfaceCategory
-        return [b for b in uls if isinstance(b, dict) and b.get("surfaceCategory") == n]
-
-    # Mulch/Water Visualization Surface #2 (low priority)
+    # Mulch/Water Visualization Surface #2 has low priority, so draw it first
+    # Drawing as the black/dark blue, but it will show up different depending on scene
     surface2_color = (0.1, 0.2, 0.25)
-    drawSplinesOnImage(spl(8), surface2_color, im, pc, image_scale, course_version)
-    drawBrushesOnImage(br(8),  surface2_color, im, pc, image_scale)
+    drawSplinesOnImage([s for s in ss if s["surface"] == 8], surface2_color, im, pc, image_scale, course_version)
+    drawBrushesOnImage([b for b in uls if b is not None and b["surfaceCategory"] == 8], surface2_color, im, pc, image_scale)
 
-    # Heavy rough
+    # Then draw heavy rough
     heavy_rough_color = (0, 0.3, 0.1)
-    drawSplinesOnImage(spl(4), heavy_rough_color, im, pc, image_scale, course_version)
-    drawBrushesOnImage(br(4),  heavy_rough_color, im, pc, image_scale)
+    drawSplinesOnImage([s for s in ss if s["surface"] == 4], heavy_rough_color, im, pc, image_scale, course_version)
+    drawBrushesOnImage([b for b in uls if b is not None and b["surfaceCategory"] == 4], heavy_rough_color, im, pc, image_scale)
 
-    # Rough
+    # Then draw rough
     rough_color = (0.1, 0.35, 0.15)
-    drawSplinesOnImage(spl(3), rough_color, im, pc, image_scale, course_version)
-    drawBrushesOnImage(br(3),  rough_color, im, pc, image_scale)
+    drawSplinesOnImage([s for s in ss if s["surface"] == 3], rough_color, im, pc, image_scale, course_version)
+    drawBrushesOnImage([b for b in uls if b is not None and b["surfaceCategory"] == 3], rough_color, im, pc, image_scale)
 
-    # Fairways
+    # Next draw fairways
     fairway_color = (0, 0.75, 0.2)
-    drawSplinesOnImage(spl(2), fairway_color, im, pc, image_scale, course_version)
-    drawBrushesOnImage(br(2),  fairway_color, im, pc, image_scale)
+    drawSplinesOnImage([s for s in ss if s["surface"] == 2], fairway_color, im, pc, image_scale, course_version)
+    drawBrushesOnImage([b for b in uls if b is not None and b["surfaceCategory"] == 2], fairway_color, im, pc, image_scale)
 
-    # Greens
+    # Next draw greens
     green_color = (0, 1.0, 0.2)
-    drawSplinesOnImage(spl(1), green_color, im, pc, image_scale, course_version)
-    drawBrushesOnImage(br(1),  green_color, im, pc, image_scale)
+    drawSplinesOnImage([s for s in ss if s["surface"] == 1], green_color, im, pc, image_scale, course_version) 
+    drawBrushesOnImage([b for b in uls if b is not None and b["surfaceCategory"] == 1], green_color, im, pc, image_scale)
 
-    # Bunkers
+    # Next draw bunkers
     bunker_color = (0.85, 0.85, 0.7)
-    drawSplinesOnImage(spl(0), bunker_color, im, pc, image_scale, course_version)
-    drawBrushesOnImage(br(0),  bunker_color, im, pc, image_scale)
+    drawSplinesOnImage([s for s in ss if s["surface"] == 0], bunker_color, im, pc, image_scale, course_version)
+    drawBrushesOnImage([b for b in uls if b is not None and b["surfaceCategory"] == 0], bunker_color, im, pc, image_scale)
 
     # Surface #1 - Gravel?
     surface1_color = (0.7, 0.7, 0.7)
-    drawSplinesOnImage(spl(7), surface1_color, im, pc, image_scale, course_version)
-    drawBrushesOnImage(br(7),  surface1_color, im, pc, image_scale)
+    drawSplinesOnImage([s for s in ss if s["surface"] == 7], surface1_color, im, pc, image_scale, course_version)
+    drawBrushesOnImage([b for b in uls if b is not None and b["surfaceCategory"] == 7], surface1_color, im, pc, image_scale)
 
-    # Surface #3 - Cart Path
+    # Surface #3 Cart Path
     cart_path_color = (0.3, 0.3, 0.3)
-    drawSplinesOnImage(spl(10), cart_path_color, im, pc, image_scale, course_version)
-    drawBrushesOnImage(br(10),  cart_path_color, im, pc, image_scale)
+    drawSplinesOnImage([s for s in ss if s["surface"] == 10], cart_path_color, im, pc, image_scale, course_version)
+    drawBrushesOnImage([b for b in uls if b is not None and b["surfaceCategory"] == 10], cart_path_color, im, pc, image_scale)
 
-    # Out of bounds (white) — 2K25 may wrap
+    # Don't draw brush or surface 5 because this is are clear generated trees
+    # Don't draw brush or surface 6 because this is clear generated objects
+
+    # Draw out of bounds as white boundaries
     out_of_bounds_color = (1.0, 1.0, 1.0)
     oob_json = layer_json.get(oob_tag, [])
     if course_version == 25 and isinstance(oob_json, dict):
         oob_json = oob_json.get("brushes", [])
     drawBrushesOnImage(oob_json, out_of_bounds_color, im, pc, image_scale, fill=False)
 
-    # Crowds (pink) — 2K25 may wrap
+    # Draw crowds as pink boundaries
     crowd_color = (1.0, 0.4, 0.75)
     crowd_json = layer_json.get(crowd_tag, [])
     if course_version == 25 and isinstance(crowd_json, dict):
         crowd_json = crowd_json.get("brushes", [])
     drawBrushesOnImage(crowd_json, crowd_color, im, pc, image_scale, fill=False)
 
-    # Objects — may live at root or layer
+    # Draw objects last in yellow
     object_color = (0.95, 0.9, 0.2)
-    objs = (course_json.get(obj_tag, []) or layer_json.get(obj_tag, []))
-    drawObjectsOnImage(objs, object_color, im, pc, image_scale)
+    drawObjectsOnImage(course_json.get(obj_tag, []), object_color, im, pc, image_scale)
 
-    # Holes (root)
+    # Last draw holes themselves
     hole_color = (0.9, 0.3, 0.2)
     drawHolesOnImage(course_json.get(hole_tag, []), hole_color, im, pc, image_scale, course_version)
 
