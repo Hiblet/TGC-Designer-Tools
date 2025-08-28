@@ -479,6 +479,12 @@ def clearFeatures(course_json, course_version):
     course_json[hole_tag] = []
     return course_json
 
+def lookup_way_or_warn(way_dict, member_ref, feature, printf):
+    wayref = way_dict.get(member_ref)
+    if wayref is None:
+        printf(f"WARNING: Skipping relation-way {feature} {member_ref}: way not present in OSM result")
+    return wayref
+
 def addOSMToTGC(course_json, geopointcloud, osm_result, x_offset=0.0, y_offset=0.0, options_dict={}, spline_configuration_json=None, printf=print, course_version=-1):
     global spline_configuration
 
@@ -636,15 +642,21 @@ def addOSMToTGC(course_json, geopointcloud, osm_result, x_offset=0.0, y_offset=0
         if golf_type == "fairway" and options_dict.get('fairway', True):
             for member in rel.members:
                 if isinstance(member, overpy.RelationWay) and member.role == "outer":
-                    wayref = way_dict[member.ref]
+                    #wayref = way_dict[member.ref]
+                    wayref = lookup_way_or_warn(way_dict, member.ref, "fairway", printf)
+                    if wayref is None:
+                        continue
 
                     nds = []
                     nodes = overpass_retry_get_nodes(wayref, printf=print, name=f"relation-way fairway {member.ref}", max_retries=OSM_RETRIES_LONG)
-                    if nodes is None:
-                        continue # Skip this feature within the relation
+                    if not nodes:
+                        printf(f"WARNING: Skipping relation-way fairway {member.ref}: nodes unavailable")
+                        continue
     
                     for node in nodes:
                         nds.append(geopointcloud.latlonToTGC(node.lat, node.lon, x_offset, y_offset))
+                    if not nds:
+                        continue                    
 
                     # Check this shapes bounding box against the limits of the terrain, don't draw outside this bounds
                     # Left, Top, Right, Bottom
@@ -655,19 +667,24 @@ def addOSMToTGC(course_json, geopointcloud, osm_result, x_offset=0.0, y_offset=0
 
                     fw_spline = newFairway(nds, course_version)
                     course_json[spline_tag].append(fw_spline)
+
         elif golf_type == "rough" and options_dict.get('rough', True):
             for member in rel.members:
                 if isinstance(member, overpy.RelationWay) and member.role == "outer":
-                    wayref = way_dict[member.ref]
+                    wayref = lookup_way_or_warn(way_dict, member.ref, "rough", printf)
+                    if wayref is None:
+                        continue
 
                     nds = []
                     nodes = overpass_retry_get_nodes(wayref, printf=print, name=f"relation-way rough {member.ref}", max_retries=OSM_RETRIES_LONG)
-                    if nodes is None:
-                        continue # Skip this feature within the relation
+                    if not nodes:
+                        printf(f"WARNING: Skipping relation-way rough {member.ref}: nodes unavailable")
+                        continue
     
                     for node in nodes:
                         nds.append(geopointcloud.latlonToTGC(node.lat, node.lon, x_offset, y_offset))                    
-
+                    if not nds:
+                        continue
 
                     # Check this shapes bounding box against the limits of the terrain, don't draw outside this bounds
                     # Left, Top, Right, Bottom
