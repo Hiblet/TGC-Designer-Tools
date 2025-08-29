@@ -14,6 +14,8 @@ import OSMTGC
 import tgc_definitions
 import tgc_tools
 
+from anti_ripple import anti_ripple_bilateral, ripple_metric
+
 status_print_duration = 1.0 # Print progress every n seconds
 
 def get_pixel(x_pos, z_pos, height, scale, brush_type=72):
@@ -227,9 +229,32 @@ def generate_course(course_json, heightmap_dir_path, options_dict={}, printf=pri
             printf("Background requested with scale: " + str(background_scale) + " meters")
             
         heightmap, background, holeMask = infill_image_scipy(im, mask, background_ratio=background_ratio, fill_water=options_dict.get('fill_water', False), purge_water=options_dict.get('purge_water', False), printf=printf)
+    
     except FileNotFoundError:
         printf("Could not find heightmap or mask at: " + heightmap_dir_path)
         return course_json
+    
+    # --- Anti-ripple test pass (temporary hard-wire) ---
+    try:
+        mpp = float(image_scale)  # meters per pixel for the high-res heightmap
+        before = ripple_metric(heightmap, mpp, slope_min_deg=2.0)
+
+        # If your in-game map scale is 1x1, try stamp_grid_m=1.0.
+        # 2.0 is a good default (common stamping grid).
+        heightmap = anti_ripple_bilateral(
+            heightmap,
+            meters_per_px=mpp,
+            stamp_grid_m=2.0,
+            strength=0.6,
+            slope_thresh_deg=2.0,
+            clamp_window_px=(3,31)
+        )
+
+        after = ripple_metric(heightmap, mpp, slope_min_deg=2.0)
+        printf(f"Anti-ripple: metric before={before:.4f} after={after:.4f}")
+    except Exception as e:
+        printf(f"Anti-ripple skipped: {e}")
+    # ---------------------------------------------------    
 
     # Clear existing terrain
     course_json = set_constants(course_json, options_dict.get('flatten_fairways', False), options_dict.get('flatten_greens', False), read_dictionary['origin'][0], printf=printf)
