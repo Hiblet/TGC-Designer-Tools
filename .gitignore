@@ -113,3 +113,7 @@ venv.bak/
 *.jpg
 MAPQUEST_API_KEY.txt
 src/laspy/
+
+# Extras
+.venv*/
+*.pyc
