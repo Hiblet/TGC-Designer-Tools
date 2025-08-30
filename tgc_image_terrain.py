@@ -7,6 +7,7 @@ from pathlib import Path
 import random
 import sys
 import time
+import traceback
 
 from GeoPointCloud import GeoPointCloud
 from infill_image import infill_image_scipy
@@ -14,7 +15,8 @@ import OSMTGC
 import tgc_definitions
 import tgc_tools
 
-from anti_ripple import anti_ripple_bilateral, ripple_metric
+from anti_ripple import anti_ripple_bilateral, ripple_metric_safe, ripple_diag # ripple_metric, ripple_metric_debug, 
+
 
 status_print_duration = 1.0 # Print progress every n seconds
 
@@ -234,26 +236,64 @@ def generate_course(course_json, heightmap_dir_path, options_dict={}, printf=pri
         printf("Could not find heightmap or mask at: " + heightmap_dir_path)
         return course_json
     
-    # --- Anti-ripple test pass (temporary hard-wire) ---
+    # --- Anti-ripple test pass  ---
     try:
         mpp = float(image_scale)  # meters per pixel for the high-res heightmap
-        before = ripple_metric(heightmap, mpp, slope_min_deg=2.0)
 
-        # If your in-game map scale is 1x1, try stamp_grid_m=1.0.
-        # 2.0 is a good default (common stamping grid).
-        heightmap = anti_ripple_bilateral(
-            heightmap,
-            meters_per_px=mpp,
-            stamp_grid_m=2.0,
-            strength=0.6,
-            slope_thresh_deg=2.0,
-            clamp_window_px=(3,31)
-        )
+        ar = options_dict.get("anti_ripple", {})
+        enable = bool(ar.get("enabled", False))  # keep True while we test
+        strength = float(ar.get("strength", 0.6))
+        slope_thresh_deg = float(ar.get("slope_thresh_deg", 2.0))
+        blend_width_deg = float(ar.get("blend_width_deg", 3.0))  # soft blend by default
+        max_delta_m = float(ar.get("max_delta_m", 0.0))
 
-        after = ripple_metric(heightmap, mpp, slope_min_deg=2.0)
-        printf(f"Anti-ripple: metric before={before:.4f} after={after:.4f}")
+        stamp_grid_m = float(ar.get("stamp_grid_m", mpp))  # default: match image_scale
+        # optional guard if someone passes nonsense
+        if stamp_grid_m <= 0:
+            stamp_grid_m = mpp
+
+        printf(f"Anti-ripple debug: shape={heightmap.shape}, mpp={mpp}, stamp={stamp_grid_m}, "
+            f"strength={strength}, slope>= {slope_thresh_deg} deg, blend={blend_width_deg}, "
+            f"clamp={max_delta_m} m")              
+
+        if enable:
+
+            #info = ripple_diag(heightmap, mpp)
+            #printf(
+            #    "Before AR diag: shape=%s mpp=%.3f slope[min=%.3f max=%.3f mean=%.3f] "
+            #    "counts>=0.5:%d >=1:%d >=2:%d >=4:%d"
+            #    % (info["shape"], info["mpp"], info["slope_min"], info["slope_max"], info["slope_mean"],
+            #    info["n_ge_0_5"], info["n_ge_1"], info["n_ge_2"], info["n_ge_4"])
+            #)                              
+
+            before = ripple_metric_safe(heightmap, mpp, slope_min_deg=2.0)
+
+
+            heightmap = anti_ripple_bilateral(
+                heightmap,
+                meters_per_px=mpp,
+                stamp_grid_m=stamp_grid_m,
+                strength=strength,
+                slope_thresh_deg=slope_thresh_deg,
+                blend_width_deg=blend_width_deg,
+                max_delta_m=max_delta_m,
+                clamp_window_px=(3, 31),
+            )
+
+            #info = ripple_diag(heightmap, mpp)
+            #printf(
+            #    "After AR diag: shape=%s mpp=%.3f slope[min=%.3f max=%.3f mean=%.3f] "
+            #    "counts>=0.5:%d >=1:%d >=2:%d >=4:%d"
+            #    % (info["shape"], info["mpp"], info["slope_min"], info["slope_max"], info["slope_mean"],
+            #    info["n_ge_0_5"], info["n_ge_1"], info["n_ge_2"], info["n_ge_4"])
+            #)                
+
+            after = ripple_metric_safe(heightmap, mpp, slope_min_deg=2.0)
+
+            printf(f"Anti-ripple: metric before={before:.4f} after={after:.4f}")
+
     except Exception as e:
-        printf(f"Anti-ripple skipped: {e}")
+        printf(f"Anti-ripple skipped: {e} | {traceback.format_exc()}")
     # ---------------------------------------------------    
 
     # Clear existing terrain
