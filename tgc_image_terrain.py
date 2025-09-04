@@ -241,7 +241,7 @@ def generate_course(course_json, heightmap_dir_path, options_dict={}, printf=pri
         mpp = float(image_scale)  # meters per pixel for the high-res heightmap
 
         ar = options_dict.get("anti_ripple", {})
-        enable = bool(ar.get("enabled", False))  # keep True while we test
+        enable = bool(ar.get("enabled", False))  
         strength = float(ar.get("strength", 0.6))
         slope_thresh_deg = float(ar.get("slope_thresh_deg", 2.0))
         blend_width_deg = float(ar.get("blend_width_deg", 3.0))  # soft blend by default
@@ -252,11 +252,11 @@ def generate_course(course_json, heightmap_dir_path, options_dict={}, printf=pri
         if stamp_grid_m <= 0:
             stamp_grid_m = mpp
 
-        printf(f"Anti-ripple debug: shape={heightmap.shape}, mpp={mpp}, stamp={stamp_grid_m}, "
-            f"strength={strength}, slope>= {slope_thresh_deg} deg, blend={blend_width_deg}, "
-            f"clamp={max_delta_m} m")              
-
         if enable:
+
+            printf(f"Anti-ripple debug: shape={heightmap.shape}, mpp={mpp}, stamp={stamp_grid_m}, "
+                f"strength={strength}, slope>= {slope_thresh_deg} deg, blend={blend_width_deg}, "
+                f"clamp={max_delta_m} m")               
 
             #info = ripple_diag(heightmap, mpp)
             #printf(
@@ -304,19 +304,85 @@ def generate_course(course_json, heightmap_dir_path, options_dict={}, printf=pri
 
     # Construct high resolution model
     pc = GeoPointCloud()
+
+    """
+    # === SLOPE-AWARE STAMPING PREP ==============================
+    # Switch ON to test (you can later tie this to a GUI checkbox)
+    slope_stamp_enable = bool(options_dict.get("ar_stamp_slope_aware", True))
+
+    # thresholds (deg) and radius factors; tweak to taste
+    t1 = float(options_dict.get("ar_slope_t1_deg", 1.5))  # flat -> gentle
+    t2 = float(options_dict.get("ar_slope_t2_deg", 4.0))  # gentle -> steep
+    rf_flat   = float(options_dict.get("ar_rf_flat",   1.05))  # near-raw on flats
+    rf_gentle = float(options_dict.get("ar_rf_gentle", 1.20))
+    rf_steep  = float(options_dict.get("ar_rf_steep",  1.30))
+
+    # brush choices: 15 = soft round, 10 = very soft; keep a tiny overlap even on flats (still use 15)
+    bt_flat   = int(options_dict.get("ar_bt_flat",   15))
+    bt_gentle = int(options_dict.get("ar_bt_gentle", 15))
+    bt_steep  = int(options_dict.get("ar_bt_steep",  10))
+
+    # Build slope(deg) from the filled heightmap; accept HxW or HxWx1
+    hh = heightmap.squeeze().astype(np.float32, copy=False)
+    if not np.isfinite(hh).all():
+        med = float(np.nanmedian(hh[np.isfinite(hh)])) if np.isfinite(hh).any() else 0.0
+        hh = np.where(np.isfinite(hh), hh, med).astype(np.float32)
+
+    # gradient in meters-per-pixel space
+    try:
+        dzy, dzx = np.gradient(hh, float(image_scale), float(image_scale))
+    except TypeError:
+        dzy, dzx = np.gradient(hh); inv = 1.0/float(image_scale); dzy*=inv; dzx*=inv
+
+    slope_deg_map = np.degrees(np.arctan(np.hypot(dzx, dzy)))
+    Hh, Wh = hh.shape
+
+    # Precompute per-pixel radius factor and brush type maps (fast lookup in the loop)
+    rf_map = np.empty_like(hh, dtype=np.float32)
+    bt_map = np.empty_like(hh, dtype=np.int32)
+    rf_map[:] = rf_flat; bt_map[:] = bt_flat
+    mask_g = (slope_deg_map >= t1) & (slope_deg_map < t2)
+    mask_s = (slope_deg_map >= t2)
+    rf_map[mask_g] = rf_gentle; bt_map[mask_g] = bt_gentle
+    rf_map[mask_s] = rf_steep;  bt_map[mask_s] = bt_steep
+
+    # we assume pc.points() iterates in raster order (row-major). If counts mismatch, fall back later.
+    expect_points = Hh * Wh
+    # ============================================================
+    """
+
     pc.addFromImage(heightmap, image_scale, read_dictionary['origin'], read_dictionary['projection'])
+
+    num_points_hires = len(pc.points())
+    """
+    printf(f"DIAG num_points={num_points_hires}; expect_points={expect_points}; slope_stamp_enable={slope_stamp_enable}")
+    use_index_fastpath = slope_stamp_enable and (num_points_hires == expect_points)
+    # Precompute UL ENU for coord->pixel fallback (only used if fastpath is off)
+    ul_e, ul_n = pc.ulENU()  # upper-left ENU
+    # row index grows downward; ENU northing decreases downward
+    def enu_to_rc(east_m, north_m):
+        # col: how far east from UL; row: how far south from UL
+        c = int(round((east_m  - ul_e) / float(image_scale)))
+        r = int(round((ul_n    - north_m) / float(image_scale)))
+        return r, c
+
+    # Diag counters
+    hits_fast = hits_fallback = oob = 0    
+    """
 
     # Add low resolution background
     if background is not None:
         background_pc = GeoPointCloud()
         background_pc.addFromImage(background, background_scale, read_dictionary['origin'], read_dictionary['projection'])
-        num_points = len(background_pc.points())
+        num_points_lowres = len(background_pc.points())
         last_print_time = time.time()
 
         for n, i in enumerate(background_pc.points()):
             if time.time() > last_print_time + status_print_duration:
                 last_print_time = time.time()
-                printf(str(round(100.0*float(n) / num_points, 2)) + "% through heightmap")
+                #printf(str(round(100.0*float(n) / num_points_lowres, 2)) + "% through heightmap")
+                #printf(f"{((n+1) * 100.0 / num_points_lowres):.2f}% through heightmap; DIAG: n=[{n}]; num_points_lowres=[{num_points_lowres}] ")
+                printf(f"{((n+1) * 100.0 / num_points_lowres):.2f}% through heightmap; ")
 
             # Convert to projected coordinates, then project to TGC using the high resolution pointcloud to ensure alignment
             easting, northing = background_pc.enuToProj(i[0], i[1])
@@ -325,25 +391,69 @@ def generate_course(course_json, heightmap_dir_path, options_dict={}, printf=pri
             layer_json["height"].append(get_pixel(x, z, i[2], 2.5*background_scale, brush_type=10))
 
     # Convert the pointcloud into height elements
-    num_points = len(pc.points())
+    #num_points = len(pc.points())
+
     last_print_time = time.time()
     for n, i in enumerate(pc.points()):
         if time.time() > last_print_time + status_print_duration:
             last_print_time = time.time()
-            printf(str(round(100.0*float(n) / num_points, 2)) + "% through heightmap")
+            #printf(str(round(100.0*float(n) / num_points, 2)) + f"% through heightmap; DIAG: n={n}; ")
+            #printf(f"{((n+1) * 100.0 / num_points_hires):.2f}% through heightmap; DIAG: n=[{n}]; num_points_hires=[{num_points_hires}] ")
+            printf(f"{((n+1) * 100.0 / num_points_hires):.2f}% through heightmap")
 
         x, y, z = pc.enuToTGC(i[0], i[1], 0.0) # Don't transform y, it's inverted from elevation
 
         smoothing = options_dict.get('smoothing', 0)
         if smoothing == 0:
-            layer_json["height"].append(get_pixel(x, z, i[2], image_scale))
+            layer_json["height"].append(get_pixel(x, z, i[2], image_scale)) # Original, 72 - rippley
+            #layer_json["height"].append(get_pixel(x, z, i[2], image_scale, brush_type=73)) # Sharp round
+            #layer_json["height"].append(get_pixel(x, z, i[2], 1.5*image_scale, brush_type=54)) # Fuzzy round - 54 does not work
+            #layer_json["height"].append(get_pixel(x, z, i[2], 1.5*image_scale, brush_type=10)) # 10 Second largest circle brush
+
+            #layer_json["height"].append(get_pixel(x, z, i[2], 0.1*image_scale,brush_type=72)) # 0.1m brush, hard - Garbage
+            #layer_json["height"].append(get_pixel(x, z, i[2], 1.2*image_scale,brush_type=72)) # 1.2m brush, hard - No change, still rippley
+            #layer_json["height"].append(get_pixel(x, z, i[2], image_scale, brush_type=10)) # 1m, Very Soft round ; Soft rippling, not horrendous
+            #layer_json["height"].append(get_pixel(x, z, i[2], image_scale, brush_type=9)) # 1m, Medimum-Soft round - No change, still rippley
+            #layer_json["height"].append(get_pixel(x, z, i[2], image_scale, brush_type=15)) # 1m, Soft round - OK, not markedly better
+
+            #layer_json["height"].append(get_pixel(x, z, i[2], 2*image_scale)) # 2m, 72 - Rubbish, the same rippley as heck
+            #layer_json["height"].append(get_pixel(x, z, i[2], 1.5*image_scale)) # 2m, 72 
+            #layer_json["height"].append(get_pixel(x, z, i[2], 2*image_scale, brush_type=10)) # 2m, 10 - Best yet
+            
+            # Slope aware
+            """
+            if slope_stamp_enable:
+                if use_index_fastpath:
+                    # row-major: n -> (r, c)
+                    r = n // Wh
+                    c = n %  Wh
+                    hits_fast += 1
+                else:
+                    # coordinate -> pixel index fallback
+                    r, c = enu_to_rc(i[0], i[1])
+                    hits_fallback += 1
+
+                # bounds check
+                if (0 <= r < Hh) and (0 <= c < Wh):
+                    rf = float(rf_map[r, c])
+                    bt = int(bt_map[r, c])
+                    layer_json["height"].append(get_pixel(x, z, i[2], rf * image_scale, brush_type=bt))
+                else:
+                    # out-of-bounds: fall back to legacy stamp to be safe
+                    oob += 1
+                    layer_json["height"].append(get_pixel(x, z, i[2], image_scale))
+            """
         elif smoothing == 1:
             layer_json["height"].append(get_pixel(x, z, i[2], 4*image_scale, brush_type=15))
         elif smoothing == 2:
             layer_json["height"].append(get_pixel(x, z, i[2], 3*image_scale, brush_type=9))
         elif smoothing == 3:
             layer_json["height"].append(get_pixel(x, z, i[2], 3*image_scale, brush_type=10))
-
+    """
+    if slope_stamp_enable:
+        mode = "index-fastpath" if use_index_fastpath else "coord-fallback"
+        printf(f"Slope-aware stamping: mode={mode}, hits_fast={hits_fast}, hits_fallback={hits_fallback}, oob={oob}")            
+    """
     if options_dict.get('lidar_trees', False) and len(read_dictionary.get('trees', [])) > 0:
         printf("Adding trees from lidar data")
         # Need separate mask geopointcloud because pc is cropped

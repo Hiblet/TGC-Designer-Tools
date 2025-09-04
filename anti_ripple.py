@@ -132,76 +132,8 @@ def anti_ripple_bilateral(
 
     return _restore_shape(out2d, tag)
 
-def anti_ripple_bilateral_v1(
-    height_m: np.ndarray,
-    meters_per_px: float,
-    stamp_grid_m: float = 2.0,
-    strength: float = 0.6,
-    slope_thresh_deg: float = 2.0,
-    clamp_window_px: Tuple[int, int] = (3, 31),
-) -> np.ndarray:
-    """
-    Edge-preserving smoothing targeted at ripple frequency.
-    Accepts HxW, HxWx1, 1xHxW. Returns in the same shape it received.
-    """
-    h2d, tag = _as_2d(height_m)
-    if h2d.ndim != 2:
-        # Unhandled shape; just return input untouched
-        return height_m
 
-    h32 = np.ascontiguousarray(h2d.astype(np.float32, copy=False))
-    H, W = h32.shape
-    if H == 0 or W == 0:
-        return height_m
 
-    # Window ~1.5x stamping pitch (in px), clamped and odd
-    win_px = int(round((stamp_grid_m / float(meters_per_px)) * 1.5))
-    win_px = max(clamp_window_px[0], min(clamp_window_px[1], win_px))
-    if win_px % 2 == 0:
-        win_px += 1
-
-    sigma_color_m = 0.03 + 0.12 * float(strength)  # meters
-    sigma_space_px = max(1, win_px)
-
-    slope_deg = _slope_degrees(h32, meters_per_px)
-    slope_mask = (slope_deg >= float(slope_thresh_deg))
-    has_mask = bool(slope_mask.any())
-
-    # Positional args only for OpenCV compatibility
-    smoothed = cv.bilateralFilter(h32, win_px, float(sigma_color_m), float(sigma_space_px))
-
-    out2d = h32.copy()
-    if has_mask:
-        out2d[slope_mask] = smoothed[slope_mask]
-    else:
-        out2d = smoothed
-
-    return _restore_shape(out2d, tag)
-
-def ripple_metric_v1(height_m: np.ndarray, meters_per_px: float, slope_min_deg: float = 2.0) -> float:
-    """
-    Variance of Laplacian over sloped areas; lower == smoother ripple.
-    Robust to HxWx1 inputs and tiny arrays.
-    """
-    h2d, _ = _as_2d(height_m)
-    h32 = np.ascontiguousarray(h2d.astype(np.float32, copy=False))
-
-    if h32.ndim != 2:
-        return 0.0
-    H, W = h32.shape
-    if H < 3 or W < 3:
-        return 0.0
-
-    slope_deg = _slope_degrees(h32, meters_per_px)
-    mask = (slope_deg >= float(slope_min_deg))
-    if not mask.any():
-        return 0.0
-
-    lap = cv.Laplacian(h32, cv.CV_32F, ksize=3)
-    vals = lap[mask]
-    if vals.size == 0:
-        return 0.0
-    return float(vals.var())
 
 def ripple_metric(height_m: np.ndarray, meters_per_px: float, slope_min_deg: float = 2.0) -> float:
     """

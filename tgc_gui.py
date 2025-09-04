@@ -576,6 +576,33 @@ def generateCourseFromLidar(options_entries_dict, printf):
     for key, entry in options_entries_dict.items():
         options_dict[key] = entry.get()
 
+    # --- BEGIN: pack anti-ripple nested config ---
+    # we created these in importOSMFile(): ar_enabled/ar_strength/ar_slope/ar_blend
+    ar_enabled = bool(options_dict.get("ar_enabled", False))
+
+    # remove flat keys so only the nested config is used downstream (optional but tidy)
+    strength_val = options_dict.pop("ar_strength", 0.6)
+    slope_val    = options_dict.pop("ar_slope", 2.0)
+    blend_val    = options_dict.pop("ar_blend", 3.0)
+    options_dict.pop("ar_enabled", None)
+
+    if ar_enabled:
+        # cast to float in case Spinbox returns strings
+        options_dict["anti_ripple"] = {
+            "enabled": True,
+            "strength": float(strength_val),
+            "slope_thresh_deg": float(slope_val),
+            "blend_width_deg": float(blend_val),
+            # stamp_grid_m omitted -> engine will default to image_scale
+            # max_delta_m omitted -> defaults to 0.0
+        }
+    else:
+        options_dict["anti_ripple"] = {"enabled": False}
+
+    #printf(f"DEBUG: anti_ripple opts: {options_dict.get('anti_ripple')}")        
+    # --- END: pack anti-ripple nested config ---
+
+
     heightmap_dir_path = tk.filedialog.askdirectory(initialdir=root.filename, title="Select heightmap and mask files directory")
     if heightmap_dir_path:
         drawPlaceholder()
@@ -592,6 +619,8 @@ osm_types = [
     ('Open Street Map Exports', '*.osm'), 
     ('All files', '*'), 
 ]
+
+
 def importOSMFile(options_entries_dict, printf):
     global root
     global course_json
@@ -902,6 +931,12 @@ smoothing1 = tk.Radiobutton(courseSubFrame, text="Light", variable=options_entri
 smoothing2 = tk.Radiobutton(courseSubFrame, text="Medium", variable=options_entries_dict["smoothing"], value=2, fg=check_fg, bg=check_bg)
 smoothing3 = tk.Radiobutton(courseSubFrame, text="Heavy", variable=options_entries_dict["smoothing"], value=3, fg=check_fg, bg=check_bg)
 
+# Anti-ripple (ar)
+options_entries_dict["ar_enabled"] = tk.BooleanVar(value=False)
+options_entries_dict["ar_strength"] = tk.DoubleVar(value=0.6)  # 0.4..0.9
+options_entries_dict["ar_slope"]    = tk.DoubleVar(value=2.0)  # 1.0..6.0 deg
+options_entries_dict["ar_blend"]    = tk.DoubleVar(value=3.0)  # 0.0..5.0 deg
+
 # Pack the osmControlFrame
 courseSubFrame.pack(padx=5, pady=5, fill=X, expand=True)
 backgroundCheck.grid(row=0, columnspan=2, sticky=W, padx=5)
@@ -916,6 +951,55 @@ smoothing0.grid(row=7, columnspan=2, sticky=W, padx=5)
 smoothing1.grid(row=8, columnspan=2, sticky=W, padx=5)
 smoothing2.grid(row=9, columnspan=2, sticky=W, padx=5)
 smoothing3.grid(row=10, columnspan=2, sticky=W, padx=5)
+
+# ---- Anti-ripple UI (below Terrain Smoothing radios) ----
+# simple divider line
+divider = tk.Frame(courseSubFrame, height=1, bg="#666666")
+divider.grid(row=11, column=0, columnspan=2, sticky="ew", pady=(6, 6))
+
+# group box
+arFrame = tk.LabelFrame(courseSubFrame, text="Anti-ripple (experimental)",
+                        fg=check_fg, bg=check_bg)
+arFrame.grid(row=12, column=0, columnspan=2, sticky="ew", padx=5, pady=(0, 8))
+
+# enable checkbox
+arEnable = tk.Checkbutton(arFrame, text="Enable anti-ripple",
+                          variable=options_entries_dict["ar_enabled"],
+                          fg=check_fg, bg=check_bg)
+arEnable.grid(row=0, column=0, columnspan=2, sticky="w", padx=5, pady=(6, 8))
+
+# Strength
+arStrLbl = tk.Label(arFrame, text="Strength (0.4..1.5)", fg=check_fg, bg=check_bg)
+arStrLbl.grid(row=1, column=0, sticky="w", padx=5)
+arStr = tk.Spinbox(arFrame, from_=0.4, to=1.5, increment=0.05, width=6,
+                   textvariable=options_entries_dict["ar_strength"])
+arStr.grid(row=1, column=1, sticky="w", padx=5)
+
+# Slope threshold
+arSlopeLbl = tk.Label(arFrame, text="Slope threshold (deg)", fg=check_fg, bg=check_bg)
+arSlopeLbl.grid(row=2, column=0, sticky="w", padx=5)
+arSlope = tk.Spinbox(arFrame, from_=1.0, to=6.0, increment=0.5, width=6,
+                     textvariable=options_entries_dict["ar_slope"])
+arSlope.grid(row=2, column=1, sticky="w", padx=5)
+
+# Blend width
+arBlendLbl = tk.Label(arFrame, text="Blend width (deg)", fg=check_fg, bg=check_bg)
+arBlendLbl.grid(row=3, column=0, sticky="w", padx=5)
+arBlend = tk.Spinbox(arFrame, from_=0.0, to=5.0, increment=0.5, width=6,
+                     textvariable=options_entries_dict["ar_blend"])
+arBlend.grid(row=3, column=1, sticky="w", padx=5)
+
+# enable/disable children when checkbox toggles
+def toggle_ar_controls(*_):
+    state = tk.NORMAL if options_entries_dict["ar_enabled"].get() else tk.DISABLED
+    for w in (arStrLbl, arStr, arSlopeLbl, arSlope, arBlendLbl, arBlend):
+        w.configure(state=state)
+
+toggle_ar_controls()
+options_entries_dict["ar_enabled"].trace_add("write", toggle_ar_controls)
+
+# ---- end Anti-ripple UI ----
+
 
 # Pack the two option frames side by side
 osmControlFrame.pack(side=LEFT, anchor=N, padx=5)
