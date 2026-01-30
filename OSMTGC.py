@@ -6,6 +6,7 @@ import math
 import numpy as np
 import overpy
 import time
+import OSM_LocalFile
 
 
 import tgc_definitions
@@ -20,7 +21,7 @@ status_print_duration = 1.0 # Print progress every N seconds
 
 spline_configuration = None
 
-# Wrapper to retry OSM when busy
+# Wrapper to retry OSM when busy; calls local override instead if enabled
 def overpass_query_retry(api, query, printf=print, name="OSM", max_retries=OSM_RETRIES_SHORT):
     """
     Minimal retry wrapper for Overpass queries:
@@ -29,6 +30,9 @@ def overpass_query_retry(api, query, printf=print, name="OSM", max_retries=OSM_R
       - waits a fixed 1s between attempts
       - returns None after final failure (caller decides what to do)
     """
+    if OSM_LocalFile.is_local_override_enabled():
+        return OSM_LocalFile.execute_local_override(api, query, printf, name)
+
     for attempt in range(1, max_retries + 1):
         printf(f"[{name}] Attempt {attempt}/{max_retries} ...")
         try:
