@@ -19,6 +19,7 @@ import lidar_map_api
 import tgc_image_terrain
 from tgc_visualizer import drawCourseAsImage
 import OSMTGC
+import OSM_LocalFile
 
 TGC_GUI_VERSION = "0.4.4"
 
@@ -867,6 +868,8 @@ coursebutton = Button(courseControlFrame, text="Select and Import Heightmap and 
 
 # Pack the controls frames, button at the top followed by the options
 coursebutton.pack(padx=10, pady=10)
+
+OSM_LocalFile.add_local_override_ui(courseControlFrame)
 
 # Other Course Options
 courseOptionsFrame = Frame(courseControlFrame, bg=tool_bg)
