@@ -6,6 +6,7 @@ import math
 import numpy as np
 import overpy
 import time
+import overpass_with_headers
 
 
 import tgc_definitions
@@ -450,7 +451,8 @@ def newHole(userpar, points, course_version):
     return hole
 
 def getOSMData(bottom_lat, left_lon, top_lat, right_lon, printf=print):
-    op = overpy.Overpass()
+    op = overpass_with_headers.OverpassWithHeaders() # Adds header to solve 406 error
+
     # Order is South, West, North, East
     coord_string = str(bottom_lat) + "," + str(left_lon) + "," + str(top_lat) + "," + str(right_lon)
 
