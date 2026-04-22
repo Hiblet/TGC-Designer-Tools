@@ -100,7 +100,7 @@ Set up a separate virtual environment for the build release, and install the dep
     pip install -U pip setuptools wheel
     pip install "numpy==1.26.4"
     pip install "laspy[lazrs,laszip]==2.6.1"
-    pin install -r requirements.txt
+    pip install -r requirements.txt
     pip install pyinstaller
 ```
 The laszip binary is no longer required, as have laszip 2.6.1 as a dependency, so the pyinstaller executable build command is...
