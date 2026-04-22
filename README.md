@@ -103,7 +103,7 @@ Set up a separate virtual environment for the build release, and install the dep
     pin install -r requirements.txt
     pip install pyinstaller
 ```
-The laszip binary is no longer required, as have laszip 2.6.1 as a dependency, so the pyinstaller build command is...
+The laszip binary is no longer required, as have laszip 2.6.1 as a dependency, so the pyinstaller executable build command is...
 ```bat
     python -m PyInstaller --clean --noupx --onefile --version-file file-version.txt --name TGC-Designer-Tools --collect-datas pyproj tgc_gui.py  
 ```
