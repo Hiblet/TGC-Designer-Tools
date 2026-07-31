@@ -536,15 +536,18 @@ def rotate_course(course_json, rotation_angle_radians, course_version):
     s = math.sin(-rotation_angle_radians)
 
     # Rotate Brushes
-    oob_json = layer_json[oob_tag]
-    crowd_json = layer_json[crowd_tag]
+    oob_json = layer_json.get(oob_tag,[])
+    crowd_json = layer_json.get(crowd_tag,[])
     if course_version == 25:
-        oob_json = oob_json["brushes"]
-        crowd_json = crowd_json["brushes"]
-    for b in itertools.chain(layer_json["height"],
-                             layer_json["terrainHeight"],
-                             layer_json[surface_tag],
-                             layer_json["water"],
+        if isinstance(oob_json, dict):
+            oob_json = oob_json.get("brushes", [])
+        if isinstance(crowd_json, dict):
+            crowd_json = crowd_json.get("brushes", [])
+            
+    for b in itertools.chain(layer_json.get("height",[]),
+                             layer_json.get("terrainHeight",[]),
+                             layer_json.get(surface_tag,[]),
+                             layer_json.get("water",[]),
                              oob_json,
                              crowd_json):
         try:
