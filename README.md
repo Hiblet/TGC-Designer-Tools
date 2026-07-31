@@ -9,6 +9,7 @@ This includes updates from HiCamino that provide optional smoothing facilities.
 
 - Fix: first-tab render no longer crashes with `KeyError: 'surfaceBrushes'` on 2K25 templates.
 - Fix: "Shift Features" works across legacy and 2K25 format files.
+- Fix: "Rotate Course" works across legacy and 2K25 format files.
 
 Tested on Windows 11, Python 3.11.
 
